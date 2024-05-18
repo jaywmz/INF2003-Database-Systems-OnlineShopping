@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'ecommerce_app',
+    'ecommerce_app.apps.EcommerceAppConfig',
     'django.contrib.staticfiles',
 ]
 
