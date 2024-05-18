@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class MyappConfig(AppConfig):
+class EcommerceAppConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'myapp'
+    name = 'ecommerce_app'
