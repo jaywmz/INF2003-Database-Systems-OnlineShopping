@@ -15,3 +15,6 @@ python manage.py runserver
 
 Access the app via localhost:8000. & localhost:8000/admin to go to the admin login page.
 I created an admin of name: admin pw: ciscoclass.
+
+# to create admin
+python manage.py createsuperuser 
