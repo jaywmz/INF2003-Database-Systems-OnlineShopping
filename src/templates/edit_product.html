@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Product</title>
+</head>
+<body>
+    <h1>Edit Product</h1>
+    <form method="post">
+        <label for="name_length">Name Length:</label>
+        <input type="text" id="name_length" name="name_length" value="{{ product.product_name_length }}" required>
+        <br>
+        <label for="description_length">Description Length:</label>
+        <input type="text" id="description_length" name="description_length" value="{{ product.product_description_length }}" required>
+        <br>
+        <label for="photos_qty">Photos Quantity:</label>
+        <input type="text" id="photos_qty" name="photos_qty" value="{{ product.product_photos_qty }}" required>
+        <br>
+        <label for="weight_g">Weight (g):</label>
+        <input type="text" id="weight_g" name="weight_g" value="{{ product.product_weight_g }}" required>
+        <br>
+        <label for="length_cm">Length (cm):</label>
+        <input type="text" id="length_cm" name="length_cm" value="{{ product.product_length_cm }}" required>
+        <br>
+        <label for="height_cm">Height (cm):</label>
+        <input type="text" id="height_cm" name="height_cm" value="{{ product.product_height_cm }}" required>
+        <br>
+        <label for="width_cm">Width (cm):</label>
+        <input type="text" id="width_cm" name="width_cm" value="{{ product.product_width_cm }}" required>
+        <br>
+        <button type="submit">Save Changes</button>
+    </form>
+</body>
+</html>
