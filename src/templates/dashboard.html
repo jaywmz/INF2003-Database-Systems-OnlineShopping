@@ -1,32 +1,63 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
-</head>
-<body>
-    <h1>Dashboard</h1>
-    <h2>Products</h2>
-    <ul>
-        {% for product in products %}
-        <li>
-            <a href="{{ url_for('edit_product', product_id=product.product_id) }}">{{ product.product_category_name }}</a>
-            - ${{ product.price }}
-        </li>
-        {% endfor %}
-    </ul>
+{% extends "base.html" %}
 
-    <h2>Reviews</h2>
-    <ul>
-        {% for review in reviews %}
-        <li>
-            Product: {{ review.product_category_name }}<br>
-            Score: {{ review.review_score }}<br>
-            Comment: {{ review.review_comment_title }} - {{ review.review_comment_message }}<br>
-            Date: {{ review.review_creation_date }}<br>
-        </li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="table-section">
+        <h2>Products</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Category</th>
+                    <th>Description Length</th>
+                    <th>Photos Quantity</th>
+                    <th>Weight (g)</th>
+                    <th>Dimensions (cm)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td>{{ product.product_name_length }}</td>
+                    <td>{{ product.product_category_name }}</td>
+                    <td>{{ product.product_description_length }}</td>
+                    <td>{{ product.product_photos_qty }}</td>
+                    <td>{{ product.product_weight_g }}</td>
+                    <td>{{ product.product_length_cm }} x {{ product.product_height_cm }} x {{ product.product_width_cm }}</td>
+                    <td><a href="{{ url_for('edit_product', product_id=product.product_id) }}">Edit</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-section">
+        <h2>Reviews</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Score</th>
+                    <th>Comment Title</th>
+                    <th>Comment Message</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for review in reviews %}
+                <tr>
+                    <td>{{ review.product_category_name }}</td>
+                    <td>{{ review.review_score }}</td>
+                    <td>{{ review.review_comment_title }}</td>
+                    <td>{{ review.review_comment_message }}</td>
+                    <td>{{ review.review_creation_date }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
