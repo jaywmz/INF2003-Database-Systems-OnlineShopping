@@ -1,19 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop</title>
-</head>
-<body>
-    <h1>Shop</h1>
-    <h2>Products</h2>
-    <ul>
+{% extends "base.html" %}
+
+{% block title %}Shop - Online Shop{% endblock %}
+
+{% block content %}
+<div class="shop-container">
+    <h1 class="shop-title">Shop</h1>
+    <h2 class="shop-subtitle">Products</h2>
+    <ul class="product-list">
         {% for product in products %}
-        <li>
-            {{ product.product_category_name }} - ${{ product.price }}
+        <li class="product-item">
+            <span class="product-category">{{ product.product_category_name }}</span> - 
+            <span class="product-price">${{ product.price }}</span>
         </li>
         {% endfor %}
     </ul>
-</body>
-</html>
+</div>
+{% endblock %}

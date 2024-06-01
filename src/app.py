@@ -1,23 +1,16 @@
 from flask import Flask, render_template, request, redirect, url_for, session
-import mysql.connector
-from urllib.parse import urlparse
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from werkzeug.security import check_password_hash
+from database import engine
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-# Parse the database URL
-db_url = "mysql://bacccc3deb3049:86d5cd2b@us-cluster-east-01.k8s.cleardb.net/heroku_a4ac16748985540?reconnect=true"
-url = urlparse(db_url)
-
-db_config = {
-    'host': url.hostname,
-    'user': url.username,
-    'password': url.password,
-    'database': url.path[1:],
-    'port': url.port or 3306  # Default to 3306 if no port is specified
-}
-
-db = mysql.connector.connect(**db_config)
+# Create a configured "Session" class
+Session = sessionmaker(bind=engine)
+# Create a Session
+db_session = Session()
 
 @app.route('/')
 def index():
@@ -29,17 +22,21 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
-        user = cursor.fetchone()
+        result = db_session.execute(text("SELECT * FROM user WHERE username = :username"), {'username': username})
+        user = result.fetchone()
         
         if user:
-            if user['seller_id']:
-                session['seller_id'] = user['seller_id']
-                return redirect(url_for('dashboard'))
-            elif user['customer_id']:
-                session['customer_id'] = user['customer_id']
-                return redirect(url_for('shop'))
+            # Convert Row object to dictionary
+            user_dict = {key: value for key, value in zip(result.keys(), user)}
+            if user_dict['password'] == password:  # Plain text password comparison
+                if user_dict['seller_id_fk']:
+                    session['seller_id'] = user_dict['seller_id_fk']
+                    return redirect(url_for('dashboard'))
+                elif user_dict['customer_id_fk']:
+                    session['customer_id'] = user_dict['customer_id_fk']
+                    return redirect(url_for('shop'))
+            else:
+                return "Invalid credentials"
         else:
             return "Invalid credentials"
     
@@ -48,24 +45,37 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user_type = request.form['user_type']
-        geolocation_id = request.form['geolocation_id']  # Assume geolocation ID is selected or provided
+        try:
+            username = request.form['username']
+            password = request.form['password']  # Plain text password (not recommended)
+            user_type = request.form['user_type']
+            
+            # Insert a default geolocation record and get the ID
+            db_session.execute(text("""
+                INSERT INTO geolocation (latitude, longitude, city, state) 
+                VALUES (0.0, 0.0, 'Default City', 'Default State')
+            """))
+            db_session.commit()
+            geolocation_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         
-        cursor = db.cursor()
+            if user_type == 'seller':
+                db_session.execute(text("INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
+                db_session.commit()
+                seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                db_session.execute(text("INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)"),
+                                   {'username': username, 'password': password, 'seller_id': seller_id})
+            elif user_type == 'customer':
+                db_session.execute(text("INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
+                db_session.commit()
+                customer_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                db_session.execute(text("INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)"),
+                                   {'username': username, 'password': password, 'customer_id': customer_id})
         
-        if user_type == 'seller':
-            cursor.execute("INSERT INTO sellers (geolocation_id) VALUES (%s)", (geolocation_id,))
-            seller_id = cursor.lastrowid
-            cursor.execute("INSERT INTO users (username, password, seller_id) VALUES (%s, %s, %s)", (username, password, seller_id))
-        elif user_type == 'customer':
-            cursor.execute("INSERT INTO customers (geolocation_id) VALUES (%s)", (geolocation_id,))
-            customer_id = cursor.lastrowid
-            cursor.execute("INSERT INTO users (username, password, customer_id) VALUES (%s, %s, %s)", (username, password, customer_id))
-        
-        db.commit()
-        return redirect(url_for('login'))
+            db_session.commit()
+            return redirect(url_for('login'))
+        except KeyError as e:
+            # Log the error or handle it accordingly
+            return f"Missing form field: {e}"
     
     return render_template('register.html')
 
@@ -75,13 +85,16 @@ def dashboard():
         return redirect(url_for('login'))
     
     seller_id = session['seller_id']
-    cursor = db.cursor(dictionary=True)
     
-    cursor.execute("SELECT * FROM products WHERE seller_id = %s", (seller_id,))
-    products = cursor.fetchall()
+    products = db_session.execute(text("SELECT * FROM product WHERE seller_id = :seller_id"), {'seller_id': seller_id}).fetchall()
     
-    cursor.execute("SELECT r.*, p.product_category_name FROM order_reviews r JOIN order_items oi ON r.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id WHERE p.seller_id = %s", (seller_id,))
-    reviews = cursor.fetchall()
+    reviews = db_session.execute(text("""
+        SELECT r.*, p.name AS product_name 
+        FROM order_review r 
+        JOIN order_item oi ON r.order_id_fk = oi.id 
+        JOIN product p ON oi.product_id_fk = p.id 
+        WHERE p.seller_id = :seller_id
+    """), {'seller_id': seller_id}).fetchall()
     
     return render_template('dashboard.html', products=products, reviews=reviews)
 
@@ -91,29 +104,26 @@ def edit_product(product_id):
         return redirect(url_for('login'))
     
     seller_id = session['seller_id']
-    cursor = db.cursor(dictionary=True)
     
     if request.method == 'POST':
-        name_length = request.form['name_length']
-        description_length = request.form['description_length']
-        photos_qty = request.form['photos_qty']
-        weight_g = request.form['weight_g']
-        length_cm = request.form['length_cm']
-        height_cm = request.form['height_cm']
-        width_cm = request.form['width_cm']
+        name = request.form['name']
+        description = request.form['description']
+        weight = request.form['weight']
+        length = request.form['length']
+        height = request.form['height']
+        width = request.form['width']
         
-        cursor.execute("""
-            UPDATE products 
-            SET product_name_length = %s, product_description_length = %s, product_photos_qty = %s, 
-                product_weight_g = %s, product_length_cm = %s, product_height_cm = %s, product_width_cm = %s 
-            WHERE product_id = %s AND seller_id = %s
-        """, (name_length, description_length, photos_qty, weight_g, length_cm, height_cm, width_cm, product_id, seller_id))
-        db.commit()
+        db_session.execute(text("""
+            UPDATE product 
+            SET name = :name, description = :description, weight = :weight, 
+                length = :length, height = :height, width = :width 
+            WHERE id = :product_id AND seller_id = :seller_id
+        """), {'name': name, 'description': description, 'weight': weight, 'length': length, 'height': height, 'width': width, 'product_id': product_id, 'seller_id': seller_id})
+        db_session.commit()
         
         return redirect(url_for('dashboard'))
     
-    cursor.execute("SELECT * FROM products WHERE product_id = %s AND seller_id = %s", (product_id, seller_id))
-    product = cursor.fetchone()
+    product = db_session.execute(text("SELECT * FROM product WHERE id = :product_id AND seller_id = :seller_id"), {'product_id': product_id, 'seller_id': seller_id}).fetchone()
     
     return render_template('edit_product.html', product=product)
 
@@ -122,9 +132,7 @@ def shop():
     if 'customer_id' not in session:
         return redirect(url_for('login'))
     
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM products")
-    products = cursor.fetchall()
+    products = db_session.execute(text("SELECT * FROM product")).fetchall()
     
     return render_template('shop.html', products=products)
 
