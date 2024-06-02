@@ -31,7 +31,7 @@ def reset_auto_increment(engine):
         print("Auto-increment values reset successfully.")
 
 # Execute the function
-reset_auto_increment(engine)
+# reset_auto_increment(engine)
 
 # Function to clean up user-related tables
 def cleanup_user_related_tables(engine):
@@ -63,3 +63,4 @@ def display_users(engine):
 
 # Display users after cleanup
 display_users(engine)
+

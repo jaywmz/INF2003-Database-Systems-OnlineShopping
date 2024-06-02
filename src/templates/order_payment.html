@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Order Payment{% endblock %}
+
+{% block content %}
+<div class="order-payment-container">
+    <h1>Order Payment</h1>
+    <ul class="payment-list">
+        {% for payment in order_payment %}
+        <li>
+            Payment Type ID: {{ payment.payment_type_id_fk }} - Value: {{ payment.payment_value }} - Installments: {{ payment.payment_installments }}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

@@ -153,5 +153,34 @@ def edit_product(product_id):
     
     return render_template('edit_product.html', product=product)
 
+# Add routes for order, order_payment, and order_review
+@app.route('/orders')
+def orders():
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+    
+    customer_id = session['customer_id']
+    orders = db_session.execute(text("SELECT * FROM `order` WHERE customer_id_fk = :customer_id"), {'customer_id': customer_id}).fetchall()
+    
+    return render_template('orders.html', orders=orders)
+
+@app.route('/order/<int:order_id>/payment')
+def order_payment(order_id):
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+    
+    order_payment = db_session.execute(text("SELECT * FROM order_payment WHERE order_id_fk = :order_id"), {'order_id': order_id}).fetchall()
+    
+    return render_template('order_payment.html', order_payment=order_payment)
+
+@app.route('/order/<int:order_id>/review')
+def order_review(order_id):
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+    
+    order_review = db_session.execute(text("SELECT * FROM order_review WHERE order_id_fk = :order_id"), {'order_id': order_id}).fetchall()
+    
+    return render_template('order_review.html', order_review=order_review)
+
 if __name__ == '__main__':
     app.run(debug=True)
