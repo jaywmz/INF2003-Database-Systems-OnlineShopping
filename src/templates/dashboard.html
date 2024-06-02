@@ -11,23 +11,23 @@
                 <tr>
                     <th>Product Name</th>
                     <th>Category</th>
-                    <th>Description Length</th>
-                    <th>Photos Quantity</th>
+                    <th>Description</th>
                     <th>Weight (g)</th>
                     <th>Dimensions (cm)</th>
+                    <th>Price</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for product in products %}
                 <tr>
-                    <td>{{ product.product_name_length }}</td>
-                    <td>{{ product.product_category_name }}</td>
-                    <td>{{ product.product_description_length }}</td>
-                    <td>{{ product.product_photos_qty }}</td>
-                    <td>{{ product.product_weight_g }}</td>
-                    <td>{{ product.product_length_cm }} x {{ product.product_height_cm }} x {{ product.product_width_cm }}</td>
-                    <td><a href="{{ url_for('edit_product', product_id=product.product_id) }}">Edit</a></td>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.product_category_id_fk }}</td>
+                    <td>{{ product.description }}</td>
+                    <td>{{ product.weight }}</td>
+                    <td>{{ product.length }} x {{ product.height }} x {{ product.width }}</td>
+                    <td>{{ product.price }}</td>
+                    <td><a href="{{ url_for('edit_product', product_id=product.id) }}">Edit</a></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -35,25 +35,25 @@
     </div>
 
     <div class="table-section">
-        <h2>Reviews</h2>
+        <h2>Orders</h2>
         <table>
             <thead>
                 <tr>
-                    <th>Product Name</th>
-                    <th>Score</th>
-                    <th>Comment Title</th>
-                    <th>Comment Message</th>
-                    <th>Date</th>
+                    <th>Order ID</th>
+                    <th>Customer ID</th>
+                    <th>Status</th>
+                    <th>Purchased At</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for review in reviews %}
+                {% for order in orders %}
                 <tr>
-                    <td>{{ review.product_category_name }}</td>
-                    <td>{{ review.review_score }}</td>
-                    <td>{{ review.review_comment_title }}</td>
-                    <td>{{ review.review_comment_message }}</td>
-                    <td>{{ review.review_creation_date }}</td>
+                    <td>{{ order.id }}</td>
+                    <td>{{ order.customer_id_fk }}</td>
+                    <td>{{ order.order_status }}</td>
+                    <td>{{ order.purchased_at }}</td>
+                    <td><a href="{{ url_for('order_details', order_id=order.id) }}">View</a></td>
                 </tr>
                 {% endfor %}
             </tbody>

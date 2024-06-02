@@ -9,8 +9,13 @@
     <ul class="product-list">
         {% for product in products %}
         <li class="product-item">
-            <span class="product-category">{{ product.product_category_name }}</span> - 
-            <span class="product-price">${{ product.price }}</span>
+            <div class="product-image-container">
+                <img src="{{ url_for('static', filename=product.image_link) }}" alt="{{ product.name }}" class="product-image">
+            </div>
+            <div class="product-details">
+                <span class="product-name">{{ product.name }}</span>
+                <span class="product-price">${{ product.price }}</span>
+            </div>
         </li>
         {% endfor %}
     </ul>

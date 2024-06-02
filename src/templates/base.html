@@ -16,11 +16,11 @@
                     <a href="{{ url_for('index') }}">Home</a>
                     <a href="{{ url_for('shop') }}">Shop</a>
                     {% if 'username' in session %}
-                        <span class="navbar-text">Welcome, {{ session['username'] }}</span>
-                        <a href="{{ url_for('logout') }}">Logout</a>
+                    <span>Welcome, {{ session['username'] }}</span>
+                    <a href="{{ url_for('logout') }}">Logout</a>
                     {% else %}
-                        <a href="{{ url_for('login') }}">Login</a>
-                        <a href="{{ url_for('register') }}">Register</a>
+                    <a href="{{ url_for('login') }}">Login</a>
+                    <a href="{{ url_for('register') }}">Register</a>
                     {% endif %}
                 </nav>
             </div>
@@ -37,12 +37,8 @@
             <p>
                 <a href="{{ url_for('index') }}">Home</a> |
                 <a href="{{ url_for('shop') }}">Shop</a> |
-                {% if 'username' in session %}
-                    <a href="{{ url_for('logout') }}">Logout</a>
-                {% else %}
-                    <a href="{{ url_for('login') }}">Login</a> |
-                    <a href="{{ url_for('register') }}">Register</a>
-                {% endif %}
+                <a href="{{ url_for('login') }}">Login</a> |
+                <a href="{{ url_for('register') }}">Register</a>
             </p>
         </div>
     </footer>

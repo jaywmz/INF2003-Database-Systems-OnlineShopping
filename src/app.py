@@ -110,12 +110,19 @@ def dashboard():
     
     return render_template('dashboard.html', products=products)
 
+
+
+
 @app.route('/shop')
 def shop():
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
     
-    products = db_session.execute(text("SELECT * FROM product")).fetchall()
+    products = db_session.execute(text("""
+        SELECT p.id, p.name, p.description, p.price, pi.image_link 
+        FROM product p
+        JOIN product_image pi ON p.id = pi.product_id_fk
+    """)).fetchall()
     
     return render_template('shop.html', products=products)
 

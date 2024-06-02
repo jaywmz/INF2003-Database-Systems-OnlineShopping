@@ -7,27 +7,30 @@
 </head>
 <body>
     <h1>Edit Product</h1>
-    <form method="post">
-        <label for="name_length">Name Length:</label>
-        <input type="text" id="name_length" name="name_length" value="{{ product.product_name_length }}" required>
+    <form method="post" enctype="multipart/form-data">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" value="{{ product.name }}" required>
         <br>
-        <label for="description_length">Description Length:</label>
-        <input type="text" id="description_length" name="description_length" value="{{ product.product_description_length }}" required>
+        <label for="description">Description:</label>
+        <input type="text" id="description" name="description" value="{{ product.description }}" required>
         <br>
-        <label for="photos_qty">Photos Quantity:</label>
-        <input type="text" id="photos_qty" name="photos_qty" value="{{ product.product_photos_qty }}" required>
+        <label for="weight">Weight (g):</label>
+        <input type="text" id="weight" name="weight" value="{{ product.weight }}" required>
         <br>
-        <label for="weight_g">Weight (g):</label>
-        <input type="text" id="weight_g" name="weight_g" value="{{ product.product_weight_g }}" required>
+        <label for="length">Length (cm):</label>
+        <input type="text" id="length" name="length" value="{{ product.length }}" required>
         <br>
-        <label for="length_cm">Length (cm):</label>
-        <input type="text" id="length_cm" name="length_cm" value="{{ product.product_length_cm }}" required>
+        <label for="height">Height (cm):</label>
+        <input type="text" id="height" name="height" value="{{ product.height }}" required>
         <br>
-        <label for="height_cm">Height (cm):</label>
-        <input type="text" id="height_cm" name="height_cm" value="{{ product.product_height_cm }}" required>
+        <label for="width">Width (cm):</label>
+        <input type="text" id="width" name="width" value="{{ product.width }}" required>
         <br>
-        <label for="width_cm">Width (cm):</label>
-        <input type="text" id="width_cm" name="width_cm" value="{{ product.product_width_cm }}" required>
+        <label for="price">Price:</label>
+        <input type="text" id="price" name="price" value="{{ product.price }}" required>
+        <br>
+        <label for="image">Image:</label>
+        <input type="file" id="image" name="image">
         <br>
         <button type="submit">Save Changes</button>
     </form>
