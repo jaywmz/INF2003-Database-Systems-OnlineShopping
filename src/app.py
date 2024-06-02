@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from werkzeug.security import check_password_hash
-from database import engine
 from werkzeug.security import generate_password_hash, check_password_hash
+from database import engine
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -29,6 +28,7 @@ def login():
         if user:
             user_dict = {key: value for key, value in zip(result.keys(), user)}
             if check_password_hash(user_dict['password'], password):
+                session['username'] = username
                 if user_dict['seller_id_fk']:
                     session['seller_id'] = user_dict['seller_id_fk']
                     session['role'] = 'seller'
@@ -44,22 +44,27 @@ def login():
     
     return render_template('login.html')
 
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    session.pop('seller_id', None)
+    session.pop('customer_id', None)
+    session.pop('role', None)
+    return redirect(url_for('index'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         try:
             username = request.form['username']
-            password = request.form['password']
-            hashed_password = generate_password_hash(password)
+            password = generate_password_hash(request.form['password'])  # Hash the password
             user_type = request.form['user_type']
             
-            # Check for existing user
+            # Check if the username already exists
             result = db_session.execute(text("SELECT * FROM user WHERE username = :username"), {'username': username})
-            existing_user = result.fetchone()
-            if existing_user:
-                return "Username already exists"
-
+            if result.fetchone():
+                return "Username already exists. Please choose another one."
+            
             # Insert a default geolocation record and get the ID
             db_session.execute(text("""
                 INSERT INTO geolocation (latitude, longitude, city, state) 
@@ -72,14 +77,14 @@ def register():
                 db_session.execute(text("INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
                 db_session.commit()
                 seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                db_session.execute(text("INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :hashed_password, :seller_id)"),
-                                   {'username': username, 'hashed_password': hashed_password, 'seller_id': seller_id})
+                db_session.execute(text("INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)"),
+                                   {'username': username, 'password': password, 'seller_id': seller_id})
             elif user_type == 'customer':
                 db_session.execute(text("INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
                 db_session.commit()
                 customer_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                db_session.execute(text("INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :hashed_password, :customer_id)"),
-                                   {'username': username, 'hashed_password': hashed_password, 'customer_id': customer_id})
+                db_session.execute(text("INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)"),
+                                   {'username': username, 'password': password, 'customer_id': customer_id})
         
             db_session.commit()
             return redirect(url_for('login'))
@@ -88,10 +93,7 @@ def register():
     
     return render_template('register.html')
 
-
-
 # Add role-based access control to dashboard and shop routes
-
 @app.route('/dashboard')
 def dashboard():
     if 'seller_id' not in session or session.get('role') != 'seller':
@@ -116,7 +118,6 @@ def shop():
     products = db_session.execute(text("SELECT * FROM product")).fetchall()
     
     return render_template('shop.html', products=products)
-
 
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):

@@ -15,8 +15,13 @@
                 <nav>
                     <a href="{{ url_for('index') }}">Home</a>
                     <a href="{{ url_for('shop') }}">Shop</a>
-                    <a href="{{ url_for('login') }}">Login</a>
-                    <a href="{{ url_for('register') }}">Register</a>
+                    {% if 'username' in session %}
+                        <span class="navbar-text">Welcome, {{ session['username'] }}</span>
+                        <a href="{{ url_for('logout') }}">Logout</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}">Login</a>
+                        <a href="{{ url_for('register') }}">Register</a>
+                    {% endif %}
                 </nav>
             </div>
         </header>
@@ -32,8 +37,12 @@
             <p>
                 <a href="{{ url_for('index') }}">Home</a> |
                 <a href="{{ url_for('shop') }}">Shop</a> |
-                <a href="{{ url_for('login') }}">Login</a> |
-                <a href="{{ url_for('register') }}">Register</a>
+                {% if 'username' in session %}
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Login</a> |
+                    <a href="{{ url_for('register') }}">Register</a>
+                {% endif %}
             </p>
         </div>
     </footer>
