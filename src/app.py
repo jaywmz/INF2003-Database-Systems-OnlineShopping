@@ -110,7 +110,40 @@ def dashboard():
     
     return render_template('dashboard.html', products=products)
 
+@app.route('/add_product', methods=['GET', 'POST'])
+def add_product():
+    if request.method == 'POST':
+        name = request.form['name']
+        description = request.form['description']
+        category = request.form['category']
+        weight = request.form['weight']
+        length = request.form['length']
+        height = request.form['height']
+        width = request.form['width']
+        price = request.form['price']
+        image_link = request.form['image_link']
 
+        query = """
+            INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width)
+            VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width)
+        """
+        db_session.execute(text(query), {'name': name, 'description': description, 
+                                         'product_category_id_fk': category, 'weight': weight, 'length': length, 
+                                         'height': height, 'width': width, 'price': price, 'image_link': image_link})
+
+        product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+
+        query = """
+            INSERT INTO product_image (product_id_fk, image_link)
+            VALUES (:product_id, :image_link)
+        """
+        db_session.execute(text(query), {'product_id': product_id, 'image_link': image_link})
+
+        db_session.commit()
+
+        return redirect(url_for('shop'))
+
+    return render_template('add_product.html')
 
 
 @app.route('/shop', methods=['GET', 'POST'])
