@@ -54,6 +54,13 @@ def register():
             hashed_password = generate_password_hash(password)
             user_type = request.form['user_type']
             
+            # Check for existing user
+            result = db_session.execute(text("SELECT * FROM user WHERE username = :username"), {'username': username})
+            existing_user = result.fetchone()
+            if existing_user:
+                return "Username already exists"
+
+            # Insert a default geolocation record and get the ID
             db_session.execute(text("""
                 INSERT INTO geolocation (latitude, longitude, city, state) 
                 VALUES (0.0, 0.0, 'Default City', 'Default State')
@@ -82,14 +89,16 @@ def register():
     return render_template('register.html')
 
 
+
+# Add role-based access control to dashboard and shop routes
+
 @app.route('/dashboard')
 def dashboard():
-    if 'seller_id' not in session:
+    if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
     
     seller_id = session['seller_id']
     
-    # Corrected query to join with order_item and product tables
     products = db_session.execute(text("""
         SELECT p.* 
         FROM product p
@@ -97,16 +106,17 @@ def dashboard():
         WHERE oi.seller_id_fk = :seller_id
     """), {'seller_id': seller_id}).fetchall()
     
-    # Removed reviews query as order_review table doesn't exist
-    # reviews = db_session.execute(text("""
-    #     SELECT r.*, p.name AS product_name 
-    #     FROM order_review r 
-    #     JOIN order_item oi ON r.order_id_fk = oi.id 
-    #     JOIN product p ON oi.product_id_fk = p.id 
-    #     WHERE oi.seller_id_fk = :seller_id
-    # """), {'seller_id': seller_id}).fetchall()
-    
     return render_template('dashboard.html', products=products)
+
+@app.route('/shop')
+def shop():
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+    
+    products = db_session.execute(text("SELECT * FROM product")).fetchall()
+    
+    return render_template('shop.html', products=products)
+
 
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):
@@ -141,15 +151,6 @@ def edit_product(product_id):
     """), {'product_id': product_id, 'seller_id': seller_id}).fetchone()
     
     return render_template('edit_product.html', product=product)
-
-@app.route('/shop')
-def shop():
-    if 'customer_id' not in session:
-        return redirect(url_for('login'))
-    
-    products = db_session.execute(text("SELECT * FROM product")).fetchall()
-    
-    return render_template('shop.html', products=products)
 
 if __name__ == '__main__':
     app.run(debug=True)
