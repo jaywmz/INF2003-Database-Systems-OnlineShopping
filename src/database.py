@@ -12,6 +12,27 @@ engine = create_engine(db_connection_string,
     }
 )
 
+# Function to reset auto-increment values
+def reset_auto_increment(engine):
+    with engine.connect() as conn:
+        # Disable foreign key checks
+        conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
+
+        # Reset auto-increment values
+        conn.execute(text("ALTER TABLE user AUTO_INCREMENT = 1;"))
+        conn.execute(text("ALTER TABLE seller AUTO_INCREMENT = 1;"))
+        conn.execute(text("ALTER TABLE customer AUTO_INCREMENT = 1;"))
+        conn.execute(text("ALTER TABLE geolocation AUTO_INCREMENT = 1;"))
+
+        # Enable foreign key checks
+        conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
+
+        conn.commit()
+        print("Auto-increment values reset successfully.")
+
+# Execute the function
+reset_auto_increment(engine)
+
 # Function to clean up user-related tables
 def cleanup_user_related_tables(engine):
     with engine.connect() as conn:
