@@ -113,18 +113,34 @@ def dashboard():
 
 
 
-@app.route('/shop')
+@app.route('/shop', methods=['GET', 'POST'])
 def shop():
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
-    
-    products = db_session.execute(text("""
-        SELECT p.id, p.name, p.description, p.price, pi.image_link 
-        FROM product p
-        JOIN product_image pi ON p.id = pi.product_id_fk
-    """)).fetchall()
-    
+
+    search = request.form.get('search')
+    print(f"Search term: {search}")  # Debug print
+
+    if search:
+        query = """
+            SELECT p.id, p.name, p.description, p.price, pi.image_link 
+            FROM product p
+            JOIN product_image pi ON p.id = pi.product_id_fk
+            WHERE p.name LIKE :search
+        """
+        products = db_session.execute(text(query), {'search': '%' + search + '%'}).fetchall()
+        print(f"Products found: {products}")  # Debug print
+    else:
+        query = """
+            SELECT p.id, p.name, p.description, p.price, pi.image_link 
+            FROM product p
+            JOIN product_image pi ON p.id = pi.product_id_fk
+        """
+        products = db_session.execute(text(query)).fetchall()
+        print(f"All products: {products}")  # Debug print
+
     return render_template('shop.html', products=products)
+
 
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):

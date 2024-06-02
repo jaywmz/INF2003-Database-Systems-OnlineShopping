@@ -6,6 +6,10 @@
 <div class="shop-container">
     <h1 class="shop-title">Shop</h1>
     <h2 class="shop-subtitle">Products</h2>
+    <form method="POST" style="text-align: center;">
+        <input type="text" name="search" placeholder="Search products">
+        <input type="submit" value="Search">
+    </form>
     <ul class="product-list">
         {% for product in products %}
         <li class="product-item">
