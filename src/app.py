@@ -126,6 +126,20 @@ def shop():
     
     return render_template('shop.html', products=products)
 
+@app.route('/product/<int:product_id>')
+def product(product_id):
+    # if 'customer_id' not in session or session.get('role') != 'customer':
+    #     return redirect(url_for('login'))
+    
+    product = db_session.execute(text("""
+        SELECT p.id, p.name, p.description, p.weight, p.length, p.width, p.price, pi.image_link  
+        FROM product p
+        JOIN product_image pi ON p.id = pi.product_id_fk
+        WHERE p.id = :product_id
+    """), {'product_id': product_id}).fetchone()
+    
+    return render_template('product.html', product=product)
+
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
 def edit_product(product_id):
     if 'seller_id' not in session:

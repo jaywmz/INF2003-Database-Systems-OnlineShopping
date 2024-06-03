@@ -1,0 +1,104 @@
+.page{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+}
+.pagesplit{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
+    width: 50%;
+    flex-direction: column;
+}
+.prodimg{
+    object-fit:contain;
+    width: 60%;
+}
+.prodDetails{
+    background: #f0f0f0;
+    border-top-right-radius: 2em;
+    border-bottom-right-radius: 2em;
+    justify-content: flex-start;
+    align-items: start;
+    padding: 3em;
+    padding-top: 5em;
+    margin-top: 3em;
+}
+.prodFirstContainer{
+    display: flex;
+    flex-direction: column;
+    /* height: 20%; */
+    width: 100%;
+    padding-bottom: 2em;
+}
+.prodSecondAddItem{
+    display: flex;
+    /* height: 20%;  */
+    width: 100%;
+    flex-direction:column ; 
+}
+.title{
+    font-size: xx-large;
+    font-weight: bolder;
+}
+.price{
+    font-size: large;
+    font-style: italic;
+    color: #5a5a5a;
+}
+
+.qty-input{
+    width: 50px;
+    height: 30px;
+    padding: 5px;
+    margin-right: 10px;
+    text-align: center;
+    display: flex;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0; /* Removes default margin in Chrome */
+}
+.form{
+    display: flex;
+}
+
+.addtocart{
+    background: #6c63ff;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 10px;
+    /* margin-top: 10px; */
+    margin-left: 30px;
+}
+.buttonQtyadjuster{
+    border: none;
+    border-radius: 5px;
+    color: black;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.buttonQtyadjuster:hover{
+    background: #f0f0f0;
+}
+.product-qty{
+    display: flex;
+    align-items: center;
+    background: white;
+    border:none;
+}
+
+.description{   
+    padding-top: 5px;
+    font-style: italic;
+    color: #5a5a5a;
+}

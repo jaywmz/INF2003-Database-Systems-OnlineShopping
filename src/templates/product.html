@@ -1,8 +1,52 @@
-{% extends 'base.html' %}
+    {% extends 'base.html' %}
 
-{% block content %}
-<h2>{{ product.product_category_name }}</h2>
-<p>{{ product.product_description_length }}</p>
-<p>${{ product.price }}</p>
-<p>Stock: {{ product.stock }}</p>
-{% endblock %}
+    {% block content %}
+    <div class="page">
+        <div class="pagesplit prodimg">
+            <img class="prodimg" src="{{ url_for('static', filename=product.image_link) }}"
+                alt="{{ product.product_name }}">
+        </div>
+        <div class="pagesplit prodDetails">
+            <div class="prodFirstContainer">
+                <div class="title">{{ product.name }}</div>
+                <div class="price">${{ product.price }}</div>
+            </div>
+            <div class="prodSecondAddItem">
+                <div>Quantity:</div>
+                <form class="form">
+                    <div class="qty-input">
+                        <button class="buttonQtyadjuster" data-action="minus" type="button"> - </button>
+                        <input class="product-qty" type="number" name="product-qty" min="0" max="10" value="1">
+                        <button class="buttonQtyadjuster" data-action="add" type="button"> + </button>
+                    </div>
+                    <button class="addtocart" type="submit">Add to Cart</button>
+                </form>
+            </div>
+            <p>
+                <div>Description:</div>
+                <div class="description">{{ product.description }}</div>
+            </p>
+            <!-- <p>Description:</p>
+            <p>{{ product.description }}</p> -->
+
+        </div>
+    </div>
+    <script>
+        document.querySelectorAll('.buttonQtyadjuster').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const action = button.getAttribute('data-action');
+                const input = button.parentElement.querySelector('.product-qty');
+                let value = parseInt(input.value);
+
+                if (action === 'minus' && value > 0) {
+                    value--;
+                } else if (action === 'add' && value < parseInt(input.getAttribute('max'))) {
+                    value++;
+                }
+
+                input.value = value;
+            });
+        });
+    </script>
+    {% endblock %}

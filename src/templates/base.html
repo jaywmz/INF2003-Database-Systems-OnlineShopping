@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Online Shop{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 <body>
@@ -16,8 +17,12 @@
                     <a href="{{ url_for('index') }}">Home</a>
                     <a href="{{ url_for('shop') }}">Shop</a>
                     {% if 'username' in session %}
-                    <span>Welcome, {{ session['username'] }}</span>
-                    <a href="{{ url_for('logout') }}">Logout</a>
+                    <div class="dropdown">
+                        <span class="username">Welcome, {{ session['username'] }}</span>
+                        <div class="dropdown-content">
+                            <a href="{{ url_for('logout') }}">Logout</a>
+                        </div>
+                    </div>
                     {% else %}
                     <a href="{{ url_for('login') }}">Login</a>
                     <a href="{{ url_for('register') }}">Register</a>
