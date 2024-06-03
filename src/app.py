@@ -1,3 +1,4 @@
+from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -14,7 +15,17 @@ Session = sessionmaker(bind=engine)
 # Create a Session
 db_session = Session()
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        print("Session: ", session)
+        if 'logged_in' not in session or not session['logged_in']:
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
@@ -31,6 +42,7 @@ def login():
             user_dict = {key: value for key, value in zip(result.keys(), user)}
             if check_password_hash(user_dict['password'], password):
                 session['username'] = username
+                session['logged_in'] = True
                 if user_dict['seller_id_fk']:
                     session['seller_id'] = user_dict['seller_id_fk']
                     session['role'] = 'seller'
@@ -52,6 +64,7 @@ def logout():
     session.pop('seller_id', None)
     session.pop('customer_id', None)
     session.pop('role', None)
+    session['logged_in'] = False
     return redirect(url_for('index'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -97,6 +110,7 @@ def register():
 
 # Add role-based access control to dashboard and shop routes
 @app.route('/dashboard')
+@login_required
 def dashboard():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
@@ -115,6 +129,7 @@ def dashboard():
 import base64
 
 @app.route('/add_product', methods=['GET', 'POST'])
+@login_required
 def add_product():
     if request.method == 'POST':
         name = request.form['name']
@@ -153,9 +168,8 @@ def add_product():
 
     return render_template('add_product.html')
 
-
-
 @app.route('/shop', methods=['GET', 'POST'])
+@login_required
 def shop():
    # if 'customer_id' not in session or session.get('role') != 'customer':
        # return redirect(url_for('login'))
@@ -183,11 +197,8 @@ def shop():
 
     return render_template('shop.html', products=products)
 
-
-
-
-
 @app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
+@login_required
 def edit_product(product_id):
     if 'seller_id' not in session:
         return redirect(url_for('login'))
@@ -223,6 +234,7 @@ def edit_product(product_id):
 
 # Add routes for order, order_payment, and order_review
 @app.route('/orders')
+@login_required
 def orders():
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
@@ -233,6 +245,7 @@ def orders():
     return render_template('orders.html', orders=orders)
 
 @app.route('/order/<int:order_id>/payment')
+@login_required
 def order_payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
@@ -242,6 +255,7 @@ def order_payment(order_id):
     return render_template('order_payment.html', order_payment=order_payment)
 
 @app.route('/order/<int:order_id>/review')
+@login_required
 def order_review(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
