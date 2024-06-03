@@ -3,6 +3,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import engine
+from werkzeug.utils import secure_filename
+import base64
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -110,21 +112,80 @@ def dashboard():
     
     return render_template('dashboard.html', products=products)
 
+import base64
+
+@app.route('/add_product', methods=['GET', 'POST'])
+def add_product():
+    if request.method == 'POST':
+        name = request.form['name']
+        description = request.form['description']
+        category = request.form['category']
+        weight = request.form['weight']
+        length = request.form['length']
+        height = request.form['height']
+        width = request.form['width']
+        price = request.form['price']
+
+        # Handle file upload
+        image_file = request.files['image_file']
+        if image_file:
+            image_data = base64.b64encode(image_file.read()).decode('utf-8')
+
+            query = """
+                INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width)
+                VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width)
+            """
+            db_session.execute(text(query), {'name': name, 'description': description, 
+                                             'product_category_id_fk': category, 'weight': weight, 'length': length, 
+                                             'height': height, 'width': width, 'price': price})
+
+            product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+
+            query = """
+                INSERT INTO product_image (product_id_fk, image_link)
+                VALUES (:product_id, :image_link)
+            """
+            db_session.execute(text(query), {'product_id': product_id, 'image_link': image_data})
+
+            db_session.commit()
+
+            return redirect(url_for('shop'))
+
+    return render_template('add_product.html')
 
 
 
-@app.route('/shop')
+@app.route('/shop', methods=['GET', 'POST'])
 def shop():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-    
-    products = db_session.execute(text("""
-        SELECT p.id, p.name, p.description, p.price, pi.image_link 
-        FROM product p
-        JOIN product_image pi ON p.id = pi.product_id_fk
-    """)).fetchall()
-    
+   # if 'customer_id' not in session or session.get('role') != 'customer':
+       # return redirect(url_for('login'))
+
+    search = request.form.get('search')
+    print(f"Search term: {search}")  # Debug print
+
+    if search:
+        query = """
+            SELECT p.id, p.name, p.description, p.price, pi.image_link
+            FROM product p
+            JOIN product_image pi ON p.id = pi.product_id_fk
+            WHERE p.name LIKE :search
+        """
+        products = db_session.execute(text(query), {'search': '%' + search + '%'}).fetchall()
+        print(f"Products found: {products}")  # Debug print
+    else:
+        query = """
+            SELECT p.id, p.name, p.description, p.price, pi.image_link
+            FROM product p
+            JOIN product_image pi ON p.id = pi.product_id_fk
+        """
+        products = db_session.execute(text(query)).fetchall()
+        print(f"All products: {products}")  # Debug print
+
     return render_template('shop.html', products=products)
+
+
+
+
 
 @app.route('/product/<int:product_id>')
 def product(product_id):

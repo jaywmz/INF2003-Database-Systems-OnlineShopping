@@ -6,11 +6,15 @@
 <div class="shop-container">
     <h1 class="shop-title">Shop</h1>
     <h2 class="shop-subtitle">Products</h2>
+    <form method="POST" style="text-align: center;">
+        <input type="text" name="search" placeholder="Search products">
+        <input type="submit" value="Search">
+    </form>
     <ul class="product-list">
         {% for product in products %}
         <a href="{{ url_for('product', product_id=product.id) }}" class="product-item">
             <div class="product-image-container">
-                <img src="{{ url_for('static', filename=product.image_link) }}" alt="{{ product.name }}" class="product-image">
+                <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
             </div>
             <div class="product-details">
                 <span class="product-name">{{ product.name }}</span>
@@ -21,3 +25,4 @@
     </ul>
 </div>
 {% endblock %}
+
