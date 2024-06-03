@@ -14,7 +14,7 @@
         {% for product in products %}
         <li class="product-item">
             <div class="product-image-container">
-                <img src="{{ url_for('static', filename=product.image_link) }}" alt="{{ product.name }}" class="product-image">
+                <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
             </div>
             <div class="product-details">
                 <span class="product-name">{{ product.name }}</span>
@@ -25,3 +25,4 @@
     </ul>
 </div>
 {% endblock %}
+
