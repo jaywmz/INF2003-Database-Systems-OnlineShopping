@@ -24,6 +24,13 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def order_has_review(order_id):
+    # Query to check if the order has a review
+    review_count = db_session.execute(text("SELECT COUNT(*) FROM order_review WHERE order_id_fk = :order_id"),
+                                      {'order_id': order_id}).scalar()
+    return review_count > 0
+
+
 @app.route('/')
 @login_required
 def index():
@@ -529,7 +536,7 @@ def process_payment(order_id):
     db_session.commit()
 
     return redirect(url_for('shop'))
-
+from datetime import datetime
 
 @app.route('/view_orders')
 @login_required
@@ -539,16 +546,70 @@ def view_orders():
 
     customer_id = session['customer_id']
     
-    # Query to get all orders for the customer with their payment value
+    # Query to get all orders for the customer with their payment value and review status
     orders = db_session.execute(text("""
-        SELECT o.id, o.purchased_at, o.order_status, op.payment_value 
+        SELECT o.id, o.purchased_at, o.order_status, op.payment_value,
+               CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review,
+               orv.score, orv.title, orv.content
         FROM `order` o
         JOIN order_payment op ON o.id = op.order_id_fk
+        LEFT JOIN order_review orv ON o.id = orv.order_id_fk
         WHERE o.customer_id_fk = :customer_id
     """), {'customer_id': customer_id}).fetchall()
 
-    return render_template('orders.html', orders=orders)
+    return render_template('orders.html', orders=orders, order_has_review=order_has_review)
 
+
+@app.route('/order_reviews/<int:order_id>')
+@login_required
+def order_reviews(order_id):
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+
+    # Fetch reviews for the given order_id
+    order_reviews = db_session.execute(text("""
+        SELECT * FROM order_review WHERE order_id_fk = :order_id
+    """), {'order_id': order_id}).fetchall()
+
+    return render_template('order_reviews.html', order_reviews=order_reviews)
+
+
+@app.route('/view_order_review/<int:order_id>')
+@login_required
+def view_order_review(order_id):
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+
+    # Fetch the review for the given order_id
+    order_review = db_session.execute(text("""
+        SELECT * FROM order_review WHERE order_id_fk = :order_id
+    """), {'order_id': order_id}).fetchone()
+
+    return render_template('view_order_review.html', order_review=order_review)
+
+
+@app.route('/write_order_review/<int:order_id>', methods=['GET', 'POST'])
+@login_required
+def write_order_review(order_id):
+    if request.method == 'POST':
+        # Handle form submission to write a review
+        score = request.form['score']
+        title = request.form['title']
+        content = request.form['content']
+        created_at = datetime.now()
+
+        db_session.execute(text("""
+            INSERT INTO order_review (order_id_fk, score, title, content, created_at)
+            VALUES (:order_id, :score, :title, :content, :created_at)
+        """), {'order_id': order_id, 'score': score, 'title': title, 'content': content, 'created_at': created_at})
+
+        db_session.commit()
+
+        return redirect(url_for('view_orders'))
+
+    else:
+        # Render the form to write a review
+        return render_template('write_order_review.html', order_id=order_id)
 
 if __name__ == '__main__':
     app.run(debug=True)
