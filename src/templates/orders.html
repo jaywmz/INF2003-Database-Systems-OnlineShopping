@@ -10,16 +10,24 @@
                 <th>Date</th>
                 <th>Status</th>
                 <th>Payment Value</th>
+                <th>Actions</th> <!-- New column for actions -->
             </tr>
         </thead>
         <tbody>
             {% for order in orders %}
-                <tr>
-                    <td>{{ order.id }}</td>
-                    <td>{{ order.purchased_at }}</td>
-                    <td>{{ order.order_status }}</td>
-                    <td>${{ order.payment_value }}</td>
-                </tr>
+            <tr>
+                <td>{{ order.id }}</td>
+                <td>{{ order.purchased_at }}</td>
+                <td>{{ order.order_status }}</td>
+                <td>{{ order.payment_value }}</td>
+                <td>
+                    {% if order_has_review(order.id) %}
+                    <a href="{{ url_for('view_order_review', order_id=order.id) }}" class="btn btn-primary">View Review</a>
+                    {% else %}
+                    <a href="{{ url_for('write_order_review', order_id=order.id) }}" class="btn btn-secondary">Write Review</a>
+                    {% endif %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
