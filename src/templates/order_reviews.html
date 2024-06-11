@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Order Reviews{% endblock %}
+
+{% for review in order_reviews %}
+<div>
+    <h4>Review Title: {{ review.title }}</h4>
+    <p>Score: {{ review.score }}</p>
+    <p>Content: {{ review.content }}</p>
+    <p>Created At: {{ review.created_at }}</p>
+</div>
+{% endfor %}
+
