@@ -1,18 +1,27 @@
-{% extends "base.html" %}
-
-{% block title %}My Orders{% endblock %}
+{% extends 'base.html' %}
 
 {% block content %}
 <div class="orders-container">
-    <h1>My Orders</h1>
-    <ul class="orders-list">
-        {% for order in orders %}
-        <li>
-            Order ID: {{ order.id }} - Status: {{ order.order_status }} - Purchased At: {{ order.purchased_at }}
-            <a href="{{ url_for('order_payment', order_id=order.id) }}">Payment Details</a>
-            <a href="{{ url_for('order_review', order_id=order.id) }}">Review</a>
-        </li>
-        {% endfor %}
-    </ul>
+    <h1>Your Orders</h1>
+    <table class="orders-table">
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Payment Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+                <tr>
+                    <td>{{ order.id }}</td>
+                    <td>{{ order.purchased_at }}</td>
+                    <td>{{ order.order_status }}</td>
+                    <td>${{ order.payment_value }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}
