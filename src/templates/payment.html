@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="payment-container">
+    <h1>Select Payment Method</h1>
+    <form action="{{ url_for('process_payment', order_id=order_id) }}" method="post">
+        <input type="hidden" name="total_amount" value="{{ total_amount }}">
+        <div class="payment-options">
+            {% for payment_type in payment_types %}
+                <div class="payment-option">
+                    <input type="radio" id="payment_{{ payment_type.id }}" name="payment_type_id" value="{{ payment_type.id }}" required>
+                    <label for="payment_{{ payment_type.id }}">{{ payment_type.payment_name }}</label>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn-payment">Confirm Payment</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="checkout-container">
+    <h1>Checkout</h1>
+    <h2>Order Summary</h2>
+    <table class="order-summary-table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in cart_items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>${{ item.price }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>${{ item.total_price }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="order-total">
+        <h2>Total: ${{ total_amount }}</h2>
+    </div>
+    <form action="{{ url_for('process_checkout') }}" method="post">
+        <input type="hidden" name="order_id" value="{{ order_id }}">
+        <input type="hidden" name="total_amount" value="{{ total_amount }}">
+        <button type="submit" class="btn-checkout">Proceed to Payment</button>
+    </form>
+</div>
+{% endblock %}
+
