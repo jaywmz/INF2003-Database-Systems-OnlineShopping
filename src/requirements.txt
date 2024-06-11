@@ -1,2 +1,4 @@
 Flask==3.0.3
 mysql-connector-python==8.4.0
+SQLAlchemy==2.0.30
+PyMySQL==1.1.1

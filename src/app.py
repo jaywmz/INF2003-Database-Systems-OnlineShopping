@@ -196,24 +196,36 @@ def shop():
 
     session['shopping_session_id'] = active_session.id
 
-    search = request.form.get('search')
-    if search:
-        query = """
-            SELECT p.id, p.name, p.description, p.price, pi.image_link
-            FROM product p
-            JOIN product_image pi ON p.id = pi.product_id_fk
-            WHERE p.name LIKE :search
-        """
-        products = db_session.execute(text(query), {'search': '%' + search + '%'}).fetchall()
-    else:
-        query = """
-            SELECT p.id, p.name, p.description, p.price, pi.image_link
-            FROM product p
-            JOIN product_image pi ON p.id = pi.product_id_fk
-        """
-        products = db_session.execute(text(query)).fetchall()
+    search = request.form.get('search', '')
+    category = request.form.get('category', '')
+    price_min = request.form.get('price_min', '')
+    price_max = request.form.get('price_max', '')
 
-    return render_template('shop.html', products=products)
+    query = """
+        SELECT p.id, p.name, p.description, p.price, pi.image_link
+        FROM product p
+        JOIN product_image pi ON p.id = pi.product_id_fk
+        WHERE p.name LIKE :search
+    """
+    params = {'search': '%' + search + '%'}
+
+    if category:
+        query += " AND p.product_category_id_fk = :category"
+        params['category'] = category
+    
+    if price_min:
+        query += " AND p.price >= :price_min"
+        params['price_min'] = price_min
+
+    if price_max:
+        query += " AND p.price <= :price_max"
+        params['price_max'] = price_max
+
+    products = db_session.execute(text(query), params).fetchall()
+
+    categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
+
+    return render_template('shop.html', products=products, categories=categories)
 
 
 @app.route('/product/<int:product_id>')
