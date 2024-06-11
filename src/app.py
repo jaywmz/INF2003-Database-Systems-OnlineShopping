@@ -175,27 +175,39 @@ def shop():
         return redirect(url_for('login'))
 
     customer_id = session['customer_id']
+    shopping_session_id = session.get('shopping_session_id')
 
-    # Check if there's an active shopping session for the customer
-    active_session = db_session.execute(
-        text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id AND total_amount = 0"),
-        {'customer_id': customer_id}
-    ).fetchone()
+    # If there's no shopping session ID in the session, create a new one
+    if not shopping_session_id:
+        try:
+            # Check for any active shopping session for the customer
+            active_session = db_session.execute(
+                text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id AND completed = FALSE ORDER BY created_at DESC LIMIT 1"),
+                {'customer_id': customer_id}
+            ).fetchone()
 
-    if not active_session:
-        # Create a new shopping session only if none exists
-        db_session.execute(
-            text("INSERT INTO shopping_session (customer_id_fk) VALUES (:customer_id)"),
-            {'customer_id': customer_id}
-        )
-        db_session.commit()
-        active_session = db_session.execute(
-            text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id ORDER BY created_at DESC LIMIT 1"),
-            {'customer_id': customer_id}
-        ).fetchone()
+            if active_session:
+                session['shopping_session_id'] = active_session.id
+            else:
+                # Create a new shopping session if no active session is found
+                db_session.execute(
+                    text("INSERT INTO shopping_session (customer_id_fk) VALUES (:customer_id)"),
+                    {'customer_id': customer_id}
+                )
+                db_session.commit()
 
-    session['shopping_session_id'] = active_session.id
+                # Retrieve the newly created shopping session ID
+                shopping_session_id = db_session.execute(
+                    text("SELECT LAST_INSERT_ID()")).scalar()
 
+                session['shopping_session_id'] = shopping_session_id
+
+        except Exception as e:
+            # Handle any exceptions, if necessary
+            print("Error:", e)
+            return redirect(url_for('shop'))  # Redirect back to the shop page
+
+    
     search = request.form.get('search', '')
     category = request.form.get('category', '')
     price_min = request.form.get('price_min', '')
@@ -338,6 +350,7 @@ def add_to_cart(product_id):
     db_session.commit()
 
     return redirect(url_for('view_cart'))
+
 
 @app.route('/remove_from_cart/<int:product_id>', methods=['POST'])
 @login_required
@@ -484,6 +497,10 @@ def process_checkout():
     total_amount = request.form['total_amount']
     return redirect(url_for('payment', order_id=order_id, total_amount=total_amount))
 
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/payment/<int:order_id>', methods=['GET', 'POST'])
 @login_required
@@ -491,12 +508,58 @@ def payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
+    customer_id = session['customer_id']
     total_amount = request.args.get('total_amount')
     payment_types = db_session.execute(text("SELECT * FROM payment_type")).fetchall()
-    
-    return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
-from datetime import datetime
+    if request.method == 'POST':
+        payment_type_id = request.form.get('payment_type_id')
+        payment_date = datetime.now()
+
+        # Insert payment record
+        db_session.execute(
+            text("INSERT INTO payment (amount, payment_type_id, order_id_fk, payment_date) VALUES (:amount, :payment_type_id, :order_id, :payment_date)"),
+            {
+                'amount': total_amount,
+                'payment_type_id': payment_type_id,
+                'order_id': order_id,
+                'payment_date': payment_date
+            }
+        )
+        
+        # Mark the current shopping session as completed
+      #  shopping_session_id = session.get('shopping_session_id')
+        #db_session.execute(
+          #  text("UPDATE shopping_session SET completed = 1 WHERE id = :session_id"),
+          #  {'session_id': shopping_session_id}
+       # )
+        
+        # Commit the transaction
+        db_session.commit()
+        
+        # Create a new shopping session for the customer
+      #  db_session.execute(
+         #   text("INSERT INTO shopping_session (customer_id_fk) VALUES (:customer_id)"),
+          #  {'customer_id': customer_id}
+       # )
+       # db_session.commit()
+        
+        # Retrieve the new shopping session
+       # new_session = db_session.execute(
+        #    text("SELECT id FROM shopping_session WHERE customer_id_fk = :customer_id ORDER BY created_at DESC LIMIT 1"),
+        #    {'customer_id': customer_id}
+       # ).fetchone()
+        
+        # Update the session with the new shopping session id
+       # session['shopping_session_id'] = new_session.id
+        
+        # Log session ID and completion status
+       # logging.debug(f"Session ID: {new_session.id}, Completion Status: {new_session.completed}")
+        
+        # Redirect to the shop page
+        return redirect(url_for('shop'))
+
+    return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
 @app.route('/process_payment/<int:order_id>', methods=['POST'])
 @login_required
@@ -552,3 +615,4 @@ def view_orders():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
