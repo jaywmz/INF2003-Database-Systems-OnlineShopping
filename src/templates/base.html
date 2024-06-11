@@ -17,6 +17,10 @@
                     <a href="{{ url_for('index') }}">Home</a>
                     <a href="{{ url_for('shop') }}">Shop</a>
                     {% if 'username' in session %}
+                    <a href="{{ url_for('view_cart') }}" class="cart-link">
+                        <i class="fas fa-shopping-cart"></i> View Cart
+                    </a>
+                    <a href="{{ url_for('view_orders') }}">View Orders</a> <!-- New button -->
                     <div class="dropdown">
                         <span class="username">Welcome, {{ session['username'] }}</span>
                         <div class="dropdown-content">
