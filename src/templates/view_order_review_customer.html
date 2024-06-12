@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div style="margin: 20px auto; max-width: 600px; padding: 20px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+    <h1 style="margin-bottom: 20px; font-size: 24px;">Order Review</h1>
+    <div style="background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0, 0, 0, 0.1); font-size: 18px;">
+      <p style="margin: 0;"><strong>Score:</strong> {{ order_review.score }}</p>
+      <p style="margin: 10px 0 0;"><strong>Title:</strong> {{ order_review.title }}</p>
+      <p style="margin: 10px 0 0;"><strong>Content:</strong> {{ order_review.content }}</p>
+    </div>
+    <a href="{{ url_for('view_orders') }}" class="btn btn-secondary" style="display: block; margin-top: 20px;">Return to Orders</a>
+  </div>
+{% endblock %}

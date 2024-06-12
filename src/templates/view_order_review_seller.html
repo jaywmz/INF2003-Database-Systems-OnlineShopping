@@ -1,0 +1,21 @@
+<!-- view_order_review_seller.html -->
+
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="order-review-container">
+    <h1>Order Review</h1>
+    {% if order_review %}
+    <div class="review-details">
+        <p><strong>Order ID:</strong> {{ order_review.order_id_fk }}</p>
+        <p><strong>Rating:</strong> {{ order_review.score }}</p>
+        <p><strong>Review:</strong> {{ order_review.content }}</p>
+    </div>
+    {% else %}
+    <p>No review available for this order.</p>
+    {% endif %}
+    <div class="return-button">
+        <a href="{{ url_for('view_product_sales', product_id=order_item.product_id_fk) }}" class="button">Return to Product Sales</a>
+    </div>
+</div>
+{% endblock %}
