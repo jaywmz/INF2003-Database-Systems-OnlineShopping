@@ -726,6 +726,37 @@ def write_order_review(order_id):
     else:
         # Render the form to write a review
         return render_template('write_order_review.html', order_id=order_id)
+    
+@app.route('/sales_report')
+@login_required
+def sales_report():
+    if 'seller_id' not in session or session.get('role') != 'seller':
+        return redirect(url_for('login'))
+
+    query = """
+    SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        DATE_FORMAT(o.purchased_at, '%Y-%m') AS sale_month,
+        SUM(oi.quantity) AS total_quantity_sold,
+        SUM(oi.quantity * p.price) AS total_revenue
+    FROM
+        `order` o
+    JOIN
+        order_item oi ON o.id = oi.order_id_fk
+    JOIN
+        product p ON oi.product_id_fk = p.id
+    WHERE
+        o.order_status = 'paid'
+    GROUP BY
+        p.id, p.name, sale_month
+    ORDER BY
+        p.id, sale_month;
+    """
+
+    sales_report = db_session.execute(text(query)).fetchall()
+    return render_template('sales_report.html', sales_report=sales_report)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

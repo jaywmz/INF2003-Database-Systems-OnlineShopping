@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}Sales Report{% endblock %}
+
+{% block content %}
+<div class="sales-report-container">
+    <h1>Sales Report</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Product ID</th>
+                <th>Product Name</th>
+                <th>Month</th>
+                <th>Total Quantity Sold</th>
+                <th>Total Revenue</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in sales_report %}
+                <tr>
+                    <td>{{ record.product_id }}</td>
+                    <td>{{ record.product_name }}</td>
+                    <td>{{ record.sale_month }}</td>
+                    <td>{{ record.total_quantity_sold }}</td>
+                    <td>${{ record.total_revenue }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
