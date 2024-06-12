@@ -13,6 +13,7 @@
                 <th>Order ID</th>
                 <th>Purchased At</th>
                 <th>Customer Username</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -21,6 +22,13 @@
                 <td>{{ sale.order_id }}</td>
                 <td>{{ sale.purchased_at }}</td>
                 <td>{{ sale.customer_username }}</td>
+                <td>
+                    {% if sale.has_review %}
+                    <a href="{{ url_for('view_order_review_seller', order_id=sale.order_id) }}" class="button">View Review</a>
+                    {% else %}
+                    No Review Available
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
