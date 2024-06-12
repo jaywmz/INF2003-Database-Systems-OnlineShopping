@@ -25,6 +25,7 @@
                         {% endif %}
                         {% if session['role'] == 'seller' %}
                             <a href="{{ url_for('sales_report') }}">Sales Report</a>
+                            <a href="{{ url_for('product_reviews') }}">Product Reviews</a>
                         {% endif %}
                         <div class="dropdown">
                             <span class="username">Welcome, {{ session['username'] }}</span>

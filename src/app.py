@@ -757,6 +757,36 @@ def sales_report():
     sales_report = db_session.execute(text(query)).fetchall()
     return render_template('sales_report.html', sales_report=sales_report)
 
+@app.route('/product_reviews')
+@login_required
+def product_reviews():
+    if 'seller_id' not in session or session.get('role') != 'seller':
+        return redirect(url_for('login'))
+
+    query = """
+    SELECT 
+        p.id AS product_id,
+        p.name AS product_name,
+        COUNT(orv.id) AS review_count,
+        AVG(orv.score) AS average_score
+    FROM 
+        product p,
+        order_item oi,
+        `order` o,
+        order_review orv
+    WHERE 
+        p.id = oi.product_id_fk
+        AND oi.order_id_fk = o.id
+        AND o.id = orv.order_id_fk
+    GROUP BY 
+        p.id, p.name
+    ORDER BY 
+        average_score DESC, review_count DESC;
+    """
+
+    product_reviews = db_session.execute(text(query)).fetchall()
+    return render_template('product_reviews.html', product_reviews=product_reviews)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

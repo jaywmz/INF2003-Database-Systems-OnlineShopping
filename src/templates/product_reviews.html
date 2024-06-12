@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Product Reviews{% endblock %}
+{% block content %}
+<div class="container">
+    <h1>Product Reviews</h1>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Product ID</th>
+                <th>Product Name</th>
+                <th>Review Count</th>
+                <th>Average Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for review in product_reviews %}
+            <tr>
+                <td>{{ review.product_id }}</td>
+                <td>{{ review.product_name }}</td>
+                <td>{{ review.review_count }}</td>
+                <td>{{ review.average_score | round(2) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
