@@ -40,35 +40,10 @@
             </tbody>
         </table>
     </div>
-    <!-- 
-    <div class="table-section">
-        <h2>Orders</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Order ID</th>
-                    <th>Customer ID</th>
-                    <th>Status</th>
-                    <th>Purchased At</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for order in orders %}
-                <tr>
-                    <td>{{ order.id }}</td>
-                    <td>{{ order.customer_id_fk }}</td>
-                    <td>{{ order.order_status }}</td>
-                    <td>{{ order.purchased_at }}</td>
-                    <td><a href="{{ url_for('order_details', order_id=order.id) }}">View</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    -->
+    
     <div class="view-sales-button">
         <a href="{{ url_for('view_sales') }}" class="button">View Sales</a>
     </div>
 </div>
 {% endblock %}
+
