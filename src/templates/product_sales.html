@@ -1,0 +1,35 @@
+<!-- product_sales.html -->
+
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="product-sales-container">
+    <h1>Product Sales</h1>
+    {% if has_sales %}
+    <h2>Sales for Product ID: {{ product_sales[0].product_id }}</h2>
+    <table class="product-sales-table">
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Purchased At</th>
+                <th>Customer Username</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in product_sales %}
+            <tr>
+                <td>{{ sale.order_id }}</td>
+                <td>{{ sale.purchased_at }}</td>
+                <td>{{ sale.customer_username }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No orders contain this product.</p>
+    {% endif %}
+    <div class="return-button">
+        <a href="{{ url_for('view_sales') }}" class="button">Return to Sales Data</a>
+    </div>
+</div>
+{% endblock %}
