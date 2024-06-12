@@ -1,13 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Product</title>
-</head>
-<body>
-    <h1>Edit Product</h1>
-    <form method="post" enctype="multipart/form-data">
+{% extends "base.html" %}
+
+{% block title %}Edit Product{% endblock %}
+
+{% block content %}
+<div class="edit-product-container">
+    <h1 class="edit-product-title">Edit Product</h1>
+    <form method="post" enctype="multipart/form-data" class="edit-product-form">
         <label for="name">Name:</label>
         <input type="text" id="name" name="name" value="{{ product.name }}" required>
         <br>
@@ -32,7 +30,7 @@
         <label for="image">Image:</label>
         <input type="file" id="image" name="image">
         <br>
-        <button type="submit">Save Changes</button>
+        <button type="submit" class="edit-product-button">Save Changes</button>
     </form>
-</body>
-</html>
+</div>
+{% endblock %}
