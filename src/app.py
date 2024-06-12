@@ -183,6 +183,57 @@ def add_product():
 
     return render_template('add_product.html')
 
+
+@app.route('/view_sales')
+@login_required
+def view_sales():
+    if 'seller_id' not in session or session.get('role') != 'seller':
+        return redirect(url_for('login'))
+
+    seller_id = session['seller_id']
+
+    # Query to get the number of sales per product along with product details for the logged-in seller
+    sales_data = db_session.execute(text("""
+        SELECT 
+            p.id as product_id, 
+            p.name as product_name, 
+            pi.image_link, 
+            COALESCE(sales.sales_count, 0) as sales_count
+        FROM product p
+        LEFT JOIN product_image pi ON p.id = pi.product_id_fk
+        LEFT JOIN (
+            SELECT oi.product_id_fk, COUNT(oi.product_id_fk) as sales_count
+            FROM order_item oi
+            GROUP BY oi.product_id_fk
+        ) as sales ON p.id = sales.product_id_fk
+        WHERE p.seller_id_fk = :seller_id
+    """), {'seller_id': seller_id}).fetchall()
+
+    return render_template('view_sales.html', sales_data=sales_data)
+
+@app.route('/view_product_sales/<int:product_id>')
+@login_required
+def view_product_sales(product_id):
+    if 'seller_id' not in session or session.get('role') != 'seller':
+        return redirect(url_for('login'))
+
+    seller_id = session['seller_id']
+
+    # Query to get order details for a specific product sold by the seller
+    product_sales = db_session.execute(text("""
+        SELECT o.id as order_id, o.purchased_at, u.username as customer_username
+        FROM order_item oi
+        JOIN `order` o ON oi.order_id_fk = o.id
+        JOIN user u ON o.customer_id_fk = u.customer_id_fk
+        JOIN product p ON oi.product_id_fk = p.id
+        WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
+    """), {'seller_id': seller_id, 'product_id': product_id}).fetchall()
+
+    has_sales = len(product_sales) > 0
+
+    return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
+
+
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
 def shop():
