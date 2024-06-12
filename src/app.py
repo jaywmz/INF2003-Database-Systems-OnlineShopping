@@ -462,6 +462,7 @@ def checkout():
             WHERE id = :order_id
         """), {'order_id': order_id, 'purchased_at': datetime.now()})
         
+        # Commit the transaction
         db_session.commit()
 
         return redirect(url_for('shop'))
@@ -514,7 +515,6 @@ def payment(order_id):
     return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
 from datetime import datetime
-
 @app.route('/process_payment/<int:order_id>', methods=['POST'])
 @login_required
 def process_payment(order_id):
@@ -543,9 +543,23 @@ def process_payment(order_id):
         WHERE id = :order_id
     """), {'order_id': order_id, 'purchased_at': datetime.now()})
     
+    # Insert rows into order_item for each product in the cart
+    shopping_session_id = session.get('shopping_session_id')
+    cart_items = db_session.execute(text("""
+        SELECT product_id_fk, quantity FROM cart_item WHERE session_id_fk = :session_id
+    """), {'session_id': shopping_session_id}).fetchall()
+
+    for item in cart_items:
+        db_session.execute(text("""
+            INSERT INTO order_item (order_id_fk, product_id_fk, quantity)
+            VALUES (:order_id, :product_id, :quantity)
+        """), {'order_id': order_id, 'product_id': item.product_id_fk, 'quantity': item.quantity})
+    
+    # Commit the transaction
     db_session.commit()
 
     return redirect(url_for('shop'))
+
 from datetime import datetime
 
 @app.route('/view_orders')
@@ -568,6 +582,29 @@ def view_orders():
     """), {'customer_id': customer_id}).fetchall()
 
     return render_template('orders.html', orders=orders, order_has_review=order_has_review)
+
+@app.route('/view_order_detail/<int:order_id>')
+@login_required
+def view_order_detail(order_id):
+    # Fetch order details from the database based on order_id
+    order = db_session.execute(text("""
+        SELECT o.*, op.payment_value
+        FROM `order` o
+        JOIN order_payment op ON o.id = op.order_id_fk
+        WHERE o.id = :order_id
+    """), {'order_id': order_id}).fetchone()
+
+    # Fetch order items for the selected order
+    order_items = db_session.execute(text("""
+        SELECT p.name as product_name, p.price, oi.quantity, (p.price * oi.quantity) as total_price
+        FROM order_item oi
+        JOIN product p ON oi.product_id_fk = p.id
+        WHERE oi.order_id_fk = :order_id
+    """), {'order_id': order_id}).fetchall()
+
+    # Render a template to display order details
+    return render_template('order_detail.html', order=order, order_items=order_items)
+
 
 
 @app.route('/order_reviews/<int:order_id>')
