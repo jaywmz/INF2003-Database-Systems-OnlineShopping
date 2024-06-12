@@ -12,6 +12,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>Image</th>
                     <th>Product Name</th>
                     <th>Category</th>
                     <th>Description</th>
@@ -24,8 +25,11 @@
             <tbody>
                 {% for product in products %}
                 <tr>
+                    <td>
+                        <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image" style="width: 100px; height: auto;">
+                    </td>
                     <td>{{ product.name }}</td>
-                    <td>{{ product.product_category_id_fk }}</td>
+                    <td>{{ product.category_name }}</td>
                     <td>{{ product.description }}</td>
                     <td>{{ product.weight }}</td>
                     <td>{{ product.length }} x {{ product.height }} x {{ product.width }}</td>
@@ -36,7 +40,7 @@
             </tbody>
         </table>
     </div>
-
+ <!--
     <div class="table-section">
         <h2>Orders</h2>
         <table>
@@ -49,8 +53,9 @@
                     <th>Actions</th>
                 </tr>
             </thead>
+            
             <tbody>
-                {% for order in orders %}
+              {% for order in orders %}
                 <tr>
                     <td>{{ order.id }}</td>
                     <td>{{ order.customer_id_fk }}</td>
@@ -60,7 +65,9 @@
                 </tr>
                 {% endfor %}
             </tbody>
+           
         </table>
     </div>
+ --> 
 </div>
 {% endblock %}
