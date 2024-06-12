@@ -20,15 +20,18 @@
     </form>
     <ul class="product-list">
         {% for product in products %}
-        <a href="{{ url_for('product', product_id=product.id) }}" class="product-item">
-            <div class="product-image-container">
-                <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
-            </div>
-            <div class="product-details">
-                <span class="product-name">{{ product.name }}</span>
-                <span class="product-price">${{ product.price }}</span>
-            </div>
-        </a>
+        <div class="product-item">
+            <a href="{{ url_for('product', product_id=product.id) }}">
+                <div class="product-image-container">
+                    <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
+                </div>
+                <div class="product-details">
+                    <span class="product-name">{{ product.name }}</span>
+                    <span class="product-price">${{ product.price }}</span>
+                </div>
+            </a>
+            <span class="product-seller">Seller: {{ product.username }}</span>
+        </div>
         {% endfor %}
     </ul>
 </div>
