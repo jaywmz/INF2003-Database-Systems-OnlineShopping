@@ -218,14 +218,15 @@ def view_product_sales(product_id):
         return redirect(url_for('login'))
 
     seller_id = session['seller_id']
-
     # Query to get order details for a specific product sold by the seller
     product_sales = db_session.execute(text("""
-        SELECT o.id as order_id, o.purchased_at, u.username as customer_username
+        SELECT o.id as order_id, o.purchased_at, u.username as customer_username,
+               CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review
         FROM order_item oi
         JOIN `order` o ON oi.order_id_fk = o.id
         JOIN user u ON o.customer_id_fk = u.customer_id_fk
         JOIN product p ON oi.product_id_fk = p.id
+        LEFT JOIN order_review orv ON o.id = orv.order_id_fk
         WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
     """), {'seller_id': seller_id, 'product_id': product_id}).fetchall()
 
@@ -233,6 +234,23 @@ def view_product_sales(product_id):
 
     return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
 
+@app.route('/view_order_review_seller/<int:order_id>')
+@login_required
+def view_order_review_seller(order_id):
+    if 'seller_id' not in session or session.get('role') != 'seller':
+        return redirect(url_for('login'))
+
+    # Fetch the review for the given order_id
+    order_review = db_session.execute(text("""
+        SELECT * FROM order_review WHERE order_id_fk = :order_id
+    """), {'order_id': order_id}).fetchone()
+
+    # Fetch the order item associated with the order
+    order_item = db_session.execute(text("""
+        SELECT * FROM order_item WHERE order_id_fk = :order_id
+    """), {'order_id': order_id}).fetchone()
+
+    return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
 
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
@@ -672,7 +690,7 @@ def order_reviews(order_id):
     return render_template('order_reviews.html', order_reviews=order_reviews)
 
 
-@app.route('/view_order_review/<int:order_id>')
+@app.route('/view_order_review_customer/<int:order_id>')
 @login_required
 def view_order_review(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
@@ -683,7 +701,7 @@ def view_order_review(order_id):
         SELECT * FROM order_review WHERE order_id_fk = :order_id
     """), {'order_id': order_id}).fetchone()
 
-    return render_template('view_order_review.html', order_review=order_review)
+    return render_template('view_order_review_customer.html', order_review=order_review)
 
 
 @app.route('/write_order_review/<int:order_id>', methods=['GET', 'POST'])
