@@ -115,7 +115,6 @@ def register():
     
     return render_template('register.html')
 
-# Add role-based access control to dashboard and shop routes
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -125,19 +124,26 @@ def dashboard():
     seller_id = session['seller_id']
     
     products = db_session.execute(text("""
-        SELECT p.* 
+        SELECT p.*, pc.name as category_name, pi.image_link
         FROM product p
-        JOIN order_item oi ON p.id = oi.product_id_fk
-        WHERE oi.seller_id_fk = :seller_id
+        JOIN product_category pc ON p.product_category_id_fk = pc.id
+        JOIN product_image pi ON p.id = pi.product_id_fk
+        WHERE p.seller_id_fk = :seller_id
     """), {'seller_id': seller_id}).fetchall()
     
     return render_template('dashboard.html', products=products)
+
 
 import base64
 
 @app.route('/add_product', methods=['GET', 'POST'])
 @login_required
 def add_product():
+    if 'seller_id' not in session:
+        return redirect(url_for('login'))
+    
+    seller_id = session['seller_id']
+    
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
@@ -153,16 +159,18 @@ def add_product():
         if image_file:
             image_data = base64.b64encode(image_file.read()).decode('utf-8')
 
+            # Insert the product and link it to the seller
             query = """
-                INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width)
-                VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width)
+                INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width, seller_id_fk)
+                VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width, :seller_id)
             """
             db_session.execute(text(query), {'name': name, 'description': description, 
                                              'product_category_id_fk': category, 'weight': weight, 'length': length, 
-                                             'height': height, 'width': width, 'price': price})
+                                             'height': height, 'width': width, 'price': price, 'seller_id': seller_id})
 
             product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
 
+            # Insert the product image
             query = """
                 INSERT INTO product_image (product_id_fk, image_link)
                 VALUES (:product_id, :image_link)
@@ -171,7 +179,7 @@ def add_product():
 
             db_session.commit()
 
-            return redirect(url_for('shop'))
+            return redirect(url_for('dashboard'))
 
     return render_template('add_product.html')
 
@@ -209,9 +217,10 @@ def shop():
     price_max = request.form.get('price_max', '')
 
     query = """
-        SELECT p.id, p.name, p.description, p.price, pi.image_link
+        SELECT p.id, p.name, p.description, p.price, pi.image_link, u.username
         FROM product p
         JOIN product_image pi ON p.id = pi.product_id_fk
+        JOIN user u ON p.seller_id_fk = u.seller_id_fk
         WHERE p.name LIKE :search
     """
     params = {'search': '%' + search + '%'}
@@ -233,6 +242,7 @@ def shop():
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
     return render_template('shop.html', products=products, categories=categories)
+
 
 
 @app.route('/product/<int:product_id>')
@@ -279,7 +289,7 @@ def edit_product(product_id):
         SELECT p.* 
         FROM product p
         JOIN order_item oi ON p.id = oi.product_id_fk
-        WHERE p.id = :product_id AND oi.seller_id_fk = :seller_id
+        WHERE p.id = :product_id AND p.seller_id_fk = :seller_id
     """), {'product_id': product_id, 'seller_id': seller_id}).fetchone()
     
     return render_template('edit_product.html', product=product)
