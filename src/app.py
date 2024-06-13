@@ -624,10 +624,24 @@ def process_payment(order_id):
             VALUES (:order_id, :product_id, :quantity)
         """), {'order_id': order_id, 'product_id': item.product_id_fk, 'quantity': item.quantity})
     
+    # Remove items from cart
+    db_session.execute(text("""
+        DELETE FROM cart_item 
+        WHERE session_id_fk = :session_id
+    """), {'session_id': shopping_session_id})
+    
+    # Update the total amount in the shopping session
+    db_session.execute(text("""
+        UPDATE shopping_session 
+        SET total_amount = 0 
+        WHERE id = :session_id
+    """), {'session_id': shopping_session_id})
+
     # Commit the transaction
     db_session.commit()
 
     return redirect(url_for('shop'))
+
 
 from datetime import datetime
 
