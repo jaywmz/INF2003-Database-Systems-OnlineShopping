@@ -262,7 +262,7 @@ def shop():
 
     # Check if there's an active shopping session for the customer
     active_session = db_session.execute(
-        text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id AND total_amount = 0"),
+        text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id"),
         {'customer_id': customer_id}
     ).fetchone()
 
