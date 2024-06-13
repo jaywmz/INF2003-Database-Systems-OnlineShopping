@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from database import engine
 from werkzeug.utils import secure_filename
 import base64
+from datetime import datetime
+
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -252,6 +254,7 @@ def view_order_review_seller(order_id):
 
     return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
 
+
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
 def shop():
@@ -269,8 +272,11 @@ def shop():
     if not active_session:
         # Create a new shopping session only if none exists
         db_session.execute(
-            text("INSERT INTO shopping_session (customer_id_fk) VALUES (:customer_id)"),
-            {'customer_id': customer_id}
+            text("""
+                INSERT INTO shopping_session (customer_id_fk, created_at, total_amount) 
+                VALUES (:customer_id, :created_at, 0)
+            """),
+            {'customer_id': customer_id, 'created_at': datetime.now()}
         )
         db_session.commit()
         active_session = db_session.execute(
@@ -311,8 +317,6 @@ def shop():
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
     return render_template('shop.html', products=products, categories=categories)
-
-
 
 @app.route('/product/<int:product_id>')
 def product(product_id):
