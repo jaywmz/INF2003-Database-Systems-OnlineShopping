@@ -7,6 +7,8 @@ from database import engine
 from werkzeug.utils import secure_filename
 import base64
 from datetime import datetime
+import time
+import functools
 
 
 app = Flask(__name__)
@@ -16,6 +18,49 @@ app.secret_key = 'your_secret_key'
 Session = sessionmaker(bind=engine)
 # Create a Session
 db_session = Session()
+
+def execute_timed_query(db_session, query, params=None):
+    if params is None:
+        params = {}
+
+    print(f"Executing query: {query}")
+    start_time = time.time()
+    result = db_session.execute(text(query), params)
+    query_time = time.time() - start_time
+    print(f"Query time: {query_time:.4f} seconds")
+    return result
+
+def fetch_all(db_session, query, params=None):
+    if params is None:
+        params = {}
+
+    try:
+        result = db_session.execute(text(query), params).fetchall()
+        return result
+    except Exception as e:
+        raise e
+
+def fetch_one(db_session, query, params=None):
+    if params is None:
+        params = {}
+
+    try:
+        result = db_session.execute(text(query), params).fetchone()
+        return result
+    except Exception as e:
+        raise e
+
+def query_timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Query '{func.__name__}' executed in {execution_time:.4f} seconds")
+        return result
+    return wrapper
+
 
 def login_required(f):
     @wraps(f)
@@ -44,7 +89,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        result = db_session.execute(text("SELECT * FROM user WHERE username = :username"), {'username': username})
+        result = execute_timed_query(db_session, "SELECT * FROM user WHERE username = :username", {'username': username})
         user = result.fetchone()
         
         if user:
@@ -85,29 +130,26 @@ def register():
             user_type = request.form['user_type']
             
             # Check if the username already exists
-            result = db_session.execute(text("SELECT * FROM user WHERE username = :username"), {'username': username})
+            result = execute_timed_query(db_session, "SELECT * FROM user WHERE username = :username", {'username': username})
             if result.fetchone():
                 return "Username already exists. Please choose another one."
             
             # Insert a default geolocation record and get the ID
-            db_session.execute(text("""
+            execute_timed_query(db_session, """
                 INSERT INTO geolocation (latitude, longitude, city, state) 
                 VALUES (0.0, 0.0, 'Default City', 'Default State')
-            """))
-            db_session.commit()
+            """)
             geolocation_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
         
             if user_type == 'seller':
-                db_session.execute(text("INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
-                db_session.commit()
+                execute_timed_query(db_session, "INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                 seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                db_session.execute(text("INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)"),
+                execute_timed_query(db_session, "INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)",
                                    {'username': username, 'password': password, 'seller_id': seller_id})
             elif user_type == 'customer':
-                db_session.execute(text("INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)"), {'geolocation_id': geolocation_id})
-                db_session.commit()
+                execute_timed_query(db_session, "INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                 customer_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                db_session.execute(text("INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)"),
+                execute_timed_query(db_session, "INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)",
                                    {'username': username, 'password': password, 'customer_id': customer_id})
         
             db_session.commit()
@@ -117,6 +159,7 @@ def register():
     
     return render_template('register.html')
 
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -125,18 +168,24 @@ def dashboard():
     
     seller_id = session['seller_id']
     
-    products = db_session.execute(text("""
-        SELECT p.*, pc.name as category_name, pi.image_link
-        FROM product p
-        JOIN product_category pc ON p.product_category_id_fk = pc.id
-        JOIN product_image pi ON p.id = pi.product_id_fk
-        WHERE p.seller_id_fk = :seller_id
-    """), {'seller_id': seller_id}).fetchall()
+    try:
+        # Construct the SQL query with timing
+        query = """
+            SELECT p.*, pc.name as category_name, pi.image_link
+            FROM product p
+            JOIN product_category pc ON p.product_category_id_fk = pc.id
+            JOIN product_image pi ON p.id = pi.product_id_fk
+            WHERE p.seller_id_fk = :seller_id
+        """
+        
+        # Execute the timed query
+        products = execute_timed_query(db_session, query, {'seller_id': seller_id}).fetchall()
+        
+        return render_template('dashboard.html', products=products)
     
-    return render_template('dashboard.html', products=products)
-
-
-import base64
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    
 
 @app.route('/add_product', methods=['GET', 'POST'])
 @login_required
@@ -161,29 +210,35 @@ def add_product():
         if image_file:
             image_data = base64.b64encode(image_file.read()).decode('utf-8')
 
-            # Insert the product and link it to the seller
-            query = """
-                INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width, seller_id_fk)
-                VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width, :seller_id)
-            """
-            db_session.execute(text(query), {'name': name, 'description': description, 
-                                             'product_category_id_fk': category, 'weight': weight, 'length': length, 
-                                             'height': height, 'width': width, 'price': price, 'seller_id': seller_id})
+            try:
+                # Insert the product and link it to the seller
+                query = """
+                    INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width, seller_id_fk)
+                    VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width, :seller_id)
+                """
+                execute_timed_query(db_session, query, {'name': name, 'description': description, 
+                                                       'product_category_id_fk': category, 'weight': weight, 
+                                                       'length': length, 'height': height, 'width': width, 
+                                                       'price': price, 'seller_id': seller_id})
 
-            product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
 
-            # Insert the product image
-            query = """
-                INSERT INTO product_image (product_id_fk, image_link)
-                VALUES (:product_id, :image_link)
-            """
-            db_session.execute(text(query), {'product_id': product_id, 'image_link': image_data})
+                # Insert the product image
+                query = """
+                    INSERT INTO product_image (product_id_fk, image_link)
+                    VALUES (:product_id, :image_link)
+                """
+                execute_timed_query(db_session, query, {'product_id': product_id, 'image_link': image_data})
 
-            db_session.commit()
+                db_session.commit()
 
-            return redirect(url_for('dashboard'))
+                return redirect(url_for('dashboard'))
+            
+            except Exception as e:
+                return f"An error occurred: {str(e)}"
 
     return render_template('add_product.html')
+
 
 
 @app.route('/view_sales')
@@ -194,24 +249,30 @@ def view_sales():
 
     seller_id = session['seller_id']
 
-    # Query to get the number of sales per product along with product details for the logged-in seller
-    sales_data = db_session.execute(text("""
-        SELECT 
-            p.id as product_id, 
-            p.name as product_name, 
-            pi.image_link, 
-            COALESCE(sales.sales_count, 0) as sales_count
-        FROM product p
-        LEFT JOIN product_image pi ON p.id = pi.product_id_fk
-        LEFT JOIN (
-            SELECT oi.product_id_fk, COUNT(oi.product_id_fk) as sales_count
-            FROM order_item oi
-            GROUP BY oi.product_id_fk
-        ) as sales ON p.id = sales.product_id_fk
-        WHERE p.seller_id_fk = :seller_id
-    """), {'seller_id': seller_id}).fetchall()
+    try:
+        # Query to get the number of sales per product along with product details for the logged-in seller
+        query = """
+            SELECT 
+                p.id as product_id, 
+                p.name as product_name, 
+                pi.image_link, 
+                COALESCE(sales.sales_count, 0) as sales_count
+            FROM product p
+            LEFT JOIN product_image pi ON p.id = pi.product_id_fk
+            LEFT JOIN (
+                SELECT oi.product_id_fk, COUNT(oi.product_id_fk) as sales_count
+                FROM order_item oi
+                GROUP BY oi.product_id_fk
+            ) as sales ON p.id = sales.product_id_fk
+            WHERE p.seller_id_fk = :seller_id
+        """
+        sales_data = execute_timed_query(db_session, query, {'seller_id': seller_id}).fetchall()
 
-    return render_template('view_sales.html', sales_data=sales_data)
+        return render_template('view_sales.html', sales_data=sales_data)
+    
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+
 
 @app.route('/view_product_sales/<int:product_id>')
 @login_required
@@ -220,21 +281,27 @@ def view_product_sales(product_id):
         return redirect(url_for('login'))
 
     seller_id = session['seller_id']
-    # Query to get order details for a specific product sold by the seller
-    product_sales = db_session.execute(text("""
-        SELECT o.id as order_id, o.purchased_at, u.username as customer_username,
-               CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review
-        FROM order_item oi
-        JOIN `order` o ON oi.order_id_fk = o.id
-        JOIN user u ON o.customer_id_fk = u.customer_id_fk
-        JOIN product p ON oi.product_id_fk = p.id
-        LEFT JOIN order_review orv ON o.id = orv.order_id_fk
-        WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
-    """), {'seller_id': seller_id, 'product_id': product_id}).fetchall()
 
-    has_sales = len(product_sales) > 0
+    try:
+        # Query to get order details for a specific product sold by the seller
+        query = """
+            SELECT o.id as order_id, o.purchased_at, u.username as customer_username,
+                   CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review
+            FROM order_item oi
+            JOIN `order` o ON oi.order_id_fk = o.id
+            JOIN user u ON o.customer_id_fk = u.customer_id_fk
+            JOIN product p ON oi.product_id_fk = p.id
+            LEFT JOIN order_review orv ON o.id = orv.order_id_fk
+            WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
+        """
+        product_sales = execute_timed_query(db_session, query, {'seller_id': seller_id, 'product_id': product_id}).fetchall()
 
-    return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
+        has_sales = len(product_sales) > 0
+
+        return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
+    
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
 
 @app.route('/view_order_review_seller/<int:order_id>')
 @login_required
@@ -242,17 +309,24 @@ def view_order_review_seller(order_id):
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
 
-    # Fetch the review for the given order_id
-    order_review = db_session.execute(text("""
-        SELECT * FROM order_review WHERE order_id_fk = :order_id
-    """), {'order_id': order_id}).fetchone()
+    try:
+        # Fetch the review for the given order_id
+        query_review = """
+            SELECT * FROM order_review WHERE order_id_fk = :order_id
+        """
+        order_review = execute_timed_query(db_session, query_review, {'order_id': order_id}).fetchone()
 
-    # Fetch the order item associated with the order
-    order_item = db_session.execute(text("""
-        SELECT * FROM order_item WHERE order_id_fk = :order_id
-    """), {'order_id': order_id}).fetchone()
+        # Fetch the order item associated with the order
+        query_order_item = """
+            SELECT * FROM order_item WHERE order_id_fk = :order_id
+        """
+        order_item = execute_timed_query(db_session, query_order_item, {'order_id': order_id}).fetchone()
 
-    return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
+        return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
+    
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+
 
 
 @app.route('/shop', methods=['GET', 'POST'])
@@ -312,7 +386,7 @@ def shop():
         query += " AND p.price <= :price_max"
         params['price_max'] = price_max
 
-    products = db_session.execute(text(query), params).fetchall()
+    products = execute_timed_query(db_session, query, params).fetchall()
 
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
@@ -323,12 +397,13 @@ def product(product_id):
     # if 'customer_id' not in session or session.get('role') != 'customer':
     #     return redirect(url_for('login'))
     
-    product = db_session.execute(text("""
+    query = """
         SELECT p.id, p.name, p.description, p.weight, p.length, p.width, p.price, pi.image_link  
         FROM product p
         JOIN product_image pi ON p.id = pi.product_id_fk
         WHERE p.id = :product_id
-    """), {'product_id': product_id}).fetchone()
+    """
+    product = execute_timed_query(db_session, query, {'product_id': product_id}).fetchone()
     
     return render_template('product.html', product=product)
 
@@ -348,24 +423,30 @@ def edit_product(product_id):
         height = request.form['height']
         width = request.form['width']
         
-        db_session.execute(text("""
+        query_update = """
             UPDATE product 
             SET name = :name, description = :description, weight = :weight, 
                 length = :length, height = :height, width = :width 
             WHERE id = :product_id
-        """), {'name': name, 'description': description, 'weight': weight, 'length': length, 'height': height, 'width': width, 'product_id': product_id})
+        """
+        db_session.execute(text(query_update), {'name': name, 'description': description, 
+                                                'weight': weight, 'length': length, 
+                                                'height': height, 'width': width, 
+                                                'product_id': product_id})
         db_session.commit()
         
         return redirect(url_for('dashboard'))
     
-    product = db_session.execute(text("""
+    query_product = """
         SELECT p.* 
         FROM product p
         JOIN order_item oi ON p.id = oi.product_id_fk
         WHERE p.id = :product_id AND p.seller_id_fk = :seller_id
-    """), {'product_id': product_id, 'seller_id': seller_id}).fetchone()
+    """
+    product = execute_timed_query(db_session, query_product, {'product_id': product_id, 'seller_id': seller_id}).fetchone()
     
     return render_template('edit_product.html', product=product)
+
 
 
 @app.route('/order/<int:order_id>/payment')
@@ -401,33 +482,43 @@ def add_to_cart(product_id):
     quantity = int(request.form.get('quantity', 1))
 
     # Check if the item is already in the cart
-    result = db_session.execute(text("SELECT * FROM cart_item WHERE session_id_fk = :session_id AND product_id_fk = :product_id"),
-                                {'session_id': shopping_session_id, 'product_id': product_id})
+    query_check_cart = """
+        SELECT * FROM cart_item WHERE session_id_fk = :session_id AND product_id_fk = :product_id
+    """
+    result = execute_timed_query(db_session, query_check_cart, {'session_id': shopping_session_id, 'product_id': product_id})
     cart_item = result.fetchone()
 
     if cart_item:
         # Update quantity if item is already in the cart
         new_quantity = cart_item.quantity + quantity
-        db_session.execute(text("UPDATE cart_item SET quantity = :quantity WHERE session_id_fk = :session_id AND product_id_fk = :product_id"),
-                           {'quantity': new_quantity, 'session_id': shopping_session_id, 'product_id': product_id})
+        query_update_cart = """
+            UPDATE cart_item SET quantity = :quantity WHERE session_id_fk = :session_id AND product_id_fk = :product_id
+        """
+        db_session.execute(text(query_update_cart), {'quantity': new_quantity, 'session_id': shopping_session_id, 'product_id': product_id})
     else:
         # Add new item to the cart
-        db_session.execute(text("INSERT INTO cart_item (session_id_fk, product_id_fk, quantity) VALUES (:session_id, :product_id, :quantity)"),
-                           {'session_id': shopping_session_id, 'product_id': product_id, 'quantity': quantity})
+        query_insert_cart = """
+            INSERT INTO cart_item (session_id_fk, product_id_fk, quantity) VALUES (:session_id, :product_id, :quantity)
+        """
+        db_session.execute(text(query_insert_cart), {'session_id': shopping_session_id, 'product_id': product_id, 'quantity': quantity})
 
     # Update total amount in the shopping session
-    total_amount = db_session.execute(text("""
-        SELECT SUM(p.price * ci.quantity) 
-        FROM cart_item ci 
-        JOIN product p ON ci.product_id_fk = p.id 
-        WHERE ci.session_id_fk = :session_id
-    """), {'session_id': shopping_session_id}).scalar()
-    db_session.execute(text("UPDATE shopping_session SET total_amount = :total_amount WHERE id = :session_id"),
-                       {'total_amount': total_amount, 'session_id': shopping_session_id})
+    query_update_total_amount = """
+        UPDATE shopping_session 
+        SET total_amount = (
+            SELECT SUM(p.price * ci.quantity) 
+            FROM cart_item ci 
+            JOIN product p ON ci.product_id_fk = p.id 
+            WHERE ci.session_id_fk = :session_id
+        ) 
+        WHERE id = :session_id
+    """
+    db_session.execute(text(query_update_total_amount), {'session_id': shopping_session_id})
 
     db_session.commit()
 
     return redirect(url_for('view_cart'))
+
 
 @app.route('/remove_from_cart/<int:product_id>', methods=['POST'])
 @login_required
@@ -439,24 +530,25 @@ def remove_from_cart(product_id):
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    db_session.execute(text("""
+    # Delete the item from the cart
+    query_delete_cart_item = """
         DELETE FROM cart_item 
         WHERE session_id_fk = :session_id AND product_id_fk = :product_id
-    """), {'session_id': shopping_session_id, 'product_id': product_id})
+    """
+    execute_timed_query(db_session, query_delete_cart_item, {'session_id': shopping_session_id, 'product_id': product_id})
     
     # Update the total amount
-    total_amount = db_session.execute(text("""
-        SELECT SUM(p.price * ci.quantity) 
-        FROM cart_item ci
-        JOIN product p ON ci.product_id_fk = p.id
-        WHERE ci.session_id_fk = :session_id
-    """), {'session_id': shopping_session_id}).scalar() or 0
-
-    db_session.execute(text("""
+    query_update_total_amount = """
         UPDATE shopping_session 
-        SET total_amount = :total_amount 
+        SET total_amount = (
+            SELECT SUM(p.price * ci.quantity) 
+            FROM cart_item ci
+            JOIN product p ON ci.product_id_fk = p.id
+            WHERE ci.session_id_fk = :session_id
+        ) 
         WHERE id = :session_id
-    """), {'total_amount': total_amount, 'session_id': shopping_session_id})
+    """
+    db_session.execute(text(query_update_total_amount), {'session_id': shopping_session_id})
 
     db_session.commit()
 
@@ -473,20 +565,23 @@ def view_cart():
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    query = """
+    # Retrieve cart items
+    query_cart_items = """
         SELECT p.id, p.name, p.price, ci.quantity, (p.price * ci.quantity) as total_price
         FROM cart_item ci
         JOIN product p ON ci.product_id_fk = p.id
         WHERE ci.session_id_fk = :session_id
     """
-    cart_items = db_session.execute(text(query), {'session_id': shopping_session_id}).fetchall()
+    cart_items = execute_timed_query(db_session, query_cart_items, {'session_id': shopping_session_id}).fetchall()
 
-    total_amount = db_session.execute(
-        text("SELECT total_amount FROM shopping_session WHERE id = :session_id"),
-        {'session_id': shopping_session_id}
-    ).scalar()
+    # Retrieve total amount
+    query_total_amount = """
+        SELECT total_amount FROM shopping_session WHERE id = :session_id
+    """
+    total_amount = db_session.execute(text(query_total_amount), {'session_id': shopping_session_id}).scalar()
 
     return render_template('cart.html', cart_items=cart_items, total_amount=total_amount)
+
 
 def ensure_payment_types():
     payment_types = ['Visa', 'Credit Card', 'Paynow']
@@ -498,14 +593,14 @@ def ensure_payment_types():
     
     for payment_type in payment_types:
         if payment_type not in existing_payment_names:
-            db_session.execute(text("""
+            query_insert_payment_type = """
                 INSERT INTO payment_type (payment_name) VALUES (:payment_name)
-            """), {'payment_name': payment_type})
+            """
+            execute_timed_query(db_session, query_insert_payment_type, {'payment_name': payment_type})
+            
     db_session.commit()
 
 ensure_payment_types()
-
-from datetime import datetime
 
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
@@ -523,17 +618,19 @@ def checkout():
         payment_type_id = request.form['payment_type_id']
 
         # Insert into order_payment
-        db_session.execute(text("""
+        query_insert_order_payment = """
             INSERT INTO order_payment (order_id_fk, payment_type_id_fk)
             VALUES (:order_id, :payment_type_id)
-        """), {'order_id': order_id, 'payment_type_id': payment_type_id})
+        """
+        execute_timed_query(db_session, query_insert_order_payment, {'order_id': order_id, 'payment_type_id': payment_type_id})
         
         # Update order status and purchase date
-        db_session.execute(text("""
+        query_update_order_status = """
             UPDATE `order`
             SET order_status = 'paid', purchased_at = :purchased_at
             WHERE id = :order_id
-        """), {'order_id': order_id, 'purchased_at': datetime.now()})
+        """
+        db_session.execute(text(query_update_order_status), {'order_id': order_id, 'purchased_at': datetime.now()})
         
         # Commit the transaction
         db_session.commit()
@@ -543,26 +640,29 @@ def checkout():
         # Handle the GET request for showing the checkout page
         # Create an order
         customer_id = session['customer_id']
-        db_session.execute(text("""
+        query_insert_order = """
             INSERT INTO `order` (customer_id_fk, order_status)
             VALUES (:customer_id, 'unpaid')
-        """), {'customer_id': customer_id})
+        """
+        db_session.execute(text(query_insert_order), {'customer_id': customer_id})
         db_session.commit()
         
         order_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
 
         # Fetch cart items for summary
-        cart_items = db_session.execute(text("""
+        query_cart_items = """
             SELECT p.name, p.price, ci.quantity, (p.price * ci.quantity) as total_price
             FROM cart_item ci
             JOIN product p ON ci.product_id_fk = p.id
             WHERE ci.session_id_fk = :session_id
-        """), {'session_id': shopping_session_id}).fetchall()
+        """
+        cart_items = execute_timed_query(db_session, query_cart_items, {'session_id': shopping_session_id}).fetchall()
 
         # Calculate total amount from the cart items
         total_amount = sum(item.total_price for item in cart_items)
 
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
+
 
 
 @app.route('/process_checkout', methods=['POST'])
@@ -587,7 +687,7 @@ def payment(order_id):
     
     return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
-from datetime import datetime
+
 @app.route('/process_payment/<int:order_id>', methods=['POST'])
 @login_required
 def process_payment(order_id):
@@ -597,49 +697,56 @@ def process_payment(order_id):
     payment_type_id = request.form['payment_type_id']
 
     # Get total_amount from shopping session using customer_id_fk from the order table
-    total_amount = db_session.execute(text("""
+    query_total_amount = """
         SELECT total_amount
         FROM shopping_session
         WHERE customer_id_fk = (SELECT customer_id_fk FROM `order` WHERE id = :order_id)
-    """), {'order_id': order_id}).scalar()
+    """
+    total_amount = db_session.execute(text(query_total_amount), {'order_id': order_id}).scalar()
 
     # Insert into order_payment with total_amount as payment_value
-    db_session.execute(text("""
+    query_insert_order_payment = """
         INSERT INTO order_payment (order_id_fk, payment_type_id_fk, payment_value)
         VALUES (:order_id, :payment_type_id, :total_amount)
-    """), {'order_id': order_id, 'payment_type_id': payment_type_id, 'total_amount': total_amount})
+    """
+    execute_timed_query(db_session, query_insert_order_payment, {'order_id': order_id, 'payment_type_id': payment_type_id, 'total_amount': total_amount})
     
     # Update order status and purchase date
-    db_session.execute(text("""
+    query_update_order_status = """
         UPDATE `order`
         SET order_status = 'paid', purchased_at = :purchased_at
         WHERE id = :order_id
-    """), {'order_id': order_id, 'purchased_at': datetime.now()})
+    """
+    db_session.execute(text(query_update_order_status), {'order_id': order_id, 'purchased_at': datetime.now()})
     
     # Insert rows into order_item for each product in the cart
     shopping_session_id = session.get('shopping_session_id')
-    cart_items = db_session.execute(text("""
+    query_cart_items = """
         SELECT product_id_fk, quantity FROM cart_item WHERE session_id_fk = :session_id
-    """), {'session_id': shopping_session_id}).fetchall()
+    """
+    cart_items = db_session.execute(text(query_cart_items), {'session_id': shopping_session_id}).fetchall()
 
     for item in cart_items:
-        db_session.execute(text("""
+        query_insert_order_item = """
             INSERT INTO order_item (order_id_fk, product_id_fk, quantity)
             VALUES (:order_id, :product_id, :quantity)
-        """), {'order_id': order_id, 'product_id': item.product_id_fk, 'quantity': item.quantity})
+        """
+        db_session.execute(text(query_insert_order_item), {'order_id': order_id, 'product_id': item.product_id_fk, 'quantity': item.quantity})
     
     # Remove items from cart
-    db_session.execute(text("""
+    query_delete_cart_items = """
         DELETE FROM cart_item 
         WHERE session_id_fk = :session_id
-    """), {'session_id': shopping_session_id})
+    """
+    db_session.execute(text(query_delete_cart_items), {'session_id': shopping_session_id})
     
     # Update the total amount in the shopping session
-    db_session.execute(text("""
+    query_update_shopping_session = """
         UPDATE shopping_session 
         SET total_amount = 0 
         WHERE id = :session_id
-    """), {'session_id': shopping_session_id})
+    """
+    db_session.execute(text(query_update_shopping_session), {'session_id': shopping_session_id})
 
     # Commit the transaction
     db_session.commit()
@@ -647,7 +754,6 @@ def process_payment(order_id):
     return redirect(url_for('shop'))
 
 
-from datetime import datetime
 
 @app.route('/view_orders')
 @login_required
@@ -674,24 +780,25 @@ def view_orders():
 @login_required
 def view_order_detail(order_id):
     # Fetch order details from the database based on order_id
-    order = db_session.execute(text("""
+    order_query = """
         SELECT o.*, op.payment_value
         FROM `order` o
         JOIN order_payment op ON o.id = op.order_id_fk
         WHERE o.id = :order_id
-    """), {'order_id': order_id}).fetchone()
+    """
+    order = fetch_one(db_session, order_query, {'order_id': order_id})
 
     # Fetch order items for the selected order
-    order_items = db_session.execute(text("""
+    order_items_query = """
         SELECT p.name as product_name, p.price, oi.quantity, (p.price * oi.quantity) as total_price
         FROM order_item oi
         JOIN product p ON oi.product_id_fk = p.id
         WHERE oi.order_id_fk = :order_id
-    """), {'order_id': order_id}).fetchall()
+    """
+    order_items = fetch_all(db_session, order_items_query, {'order_id': order_id})
 
     # Render a template to display order details
     return render_template('order_detail.html', order=order, order_items=order_items)
-
 
 
 @app.route('/order_reviews/<int:order_id>')
@@ -701,11 +808,13 @@ def order_reviews(order_id):
         return redirect(url_for('login'))
 
     # Fetch reviews for the given order_id
-    order_reviews = db_session.execute(text("""
+    order_reviews_query = """
         SELECT * FROM order_review WHERE order_id_fk = :order_id
-    """), {'order_id': order_id}).fetchall()
+    """
+    order_reviews = fetch_all(db_session, order_reviews_query, {'order_id': order_id})
 
     return render_template('order_reviews.html', order_reviews=order_reviews)
+
 
 
 @app.route('/view_order_review_customer/<int:order_id>')
@@ -715,12 +824,12 @@ def view_order_review(order_id):
         return redirect(url_for('login'))
 
     # Fetch the review for the given order_id
-    order_review = db_session.execute(text("""
+    order_review_query = """
         SELECT * FROM order_review WHERE order_id_fk = :order_id
-    """), {'order_id': order_id}).fetchone()
+    """
+    order_review = fetch_one(db_session, order_review_query, {'order_id': order_id})
 
     return render_template('view_order_review_customer.html', order_review=order_review)
-
 
 @app.route('/write_order_review/<int:order_id>', methods=['GET', 'POST'])
 @login_required
@@ -744,9 +853,12 @@ def write_order_review(order_id):
     else:
         # Render the form to write a review
         return render_template('write_order_review.html', order_id=order_id)
+
+
     
 @app.route('/sales_report')
 @login_required
+@query_timer
 def sales_report():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
@@ -777,6 +889,7 @@ def sales_report():
 
 @app.route('/product_reviews')
 @login_required
+@query_timer
 def product_reviews():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
