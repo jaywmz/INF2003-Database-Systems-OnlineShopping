@@ -23,15 +23,18 @@
                     </tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3">Total:</td>
+                    <td>${{ total_amount }}</td>
+                </tr>
+            </tfoot>
         </table>
-    </div>
-    <div class="order-total">
-        <h2>Total: ${{ total_amount }}</h2>
     </div>
     <form action="{{ url_for('process_checkout') }}" method="post">
         <input type="hidden" name="order_id" value="{{ order_id }}">
         <input type="hidden" name="total_amount" value="{{ total_amount }}">
-        <button type="submit" class="btn btn-primary">Proceed to Payment</button>
+        <button type="submit" class="btn btn-primary w-100">Proceed to Payment</button>
     </form>
 </div>
 {% endblock %}

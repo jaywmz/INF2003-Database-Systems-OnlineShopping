@@ -30,13 +30,15 @@
                         </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3">Total:</td>
+                        <td>${{ total_amount }}</td>
+                        <td><a class="btn btn-primary" href="{{ url_for('checkout') }}">Checkout</a>
+                        </div></td>
+                    </tr>
+                </tfoot>
             </table>
-        </div>
-        <div class="cart-total text-center">
-            <h2>Total: ${{ total_amount }}</h2>
-        </div>
-        <div class="cart-actions text-center">
-            <a class="btn btn-primary" href="{{ url_for('checkout') }}">Checkout</a>
         </div>
     {% else %}
         <div class="col">
