@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <h2 class="text-center">Your Orders</h2>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">Order ID</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Payment Value</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr>
+                            <td class="align-middle">{{ order.id }}</td>
+                            <td class="align-middle">{{ order.purchased_at }}</td>
+                            <td class="align-middle">{{ order.order_status }}</td>
+                            <td class="align-middle">${{ order.payment_value }}</td>
+                            <td>
+                                {% if order_has_review(order.id) %}
+                                    <button class="btn btn-primary">
+                                        <a href="{{ url_for('view_order_review', order_id=order.id) }}" >View Review</a>
+                                    </button>
+                                {% else %}
+                                    <button  class="btn btn-success">
+                                        <a href="{{ url_for('write_order_review', order_id=order.id) }}">Write Review</a>
+                                    </button>
+                                {% endif %}
+                                    <button class="btn btn-secondary">
+                                        <a href="{{ url_for('view_order_detail', order_id=order.id) }}" >View Details</a>
+                                    </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <a utton href="{{ url_for('shop') }}" class="btn btn-primary">Return to Shop</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
