@@ -16,7 +16,21 @@
                     <i class="fa fa-lock"></i>
                     <input type="password" id="password" name="password" placeholder="Enter Password" required>
                 </div>
+                <div class="input-group">
+                    <select id="role" name="role" required>
+                        <option value="" disabled selected>Select Role</option>
+                        <option value="customer">Customer</option>
+                        <option value="seller">Seller</option>
+                    </select>
+                </div>
                 <button type="submit">Login</button>
+                {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ messages[0] }}
+                    </div>
+                {% endif %}
+                {% endwith %}
                 <a href="#" class="forgot-password">Forgot Password?</a>
             </form>
         </div>
