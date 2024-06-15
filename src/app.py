@@ -328,43 +328,53 @@ def view_order_review_seller(order_id):
         return f"An error occurred: {str(e)}"
 
 
-
+# app/routes.py
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
 def shop():
-    if 'customer_id' not in session or session.get('role') != 'customer':
+    if 'role' not in session:
         return redirect(url_for('login'))
+    
+    user_role = session.get('role')
 
-    customer_id = session['customer_id']
-
-    # Check if there's an active shopping session for the customer
-    active_session = db_session.execute(
-        text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id"),
-        {'customer_id': customer_id}
-    ).fetchone()
-
-    if not active_session:
-        # Create a new shopping session only if none exists
-        db_session.execute(
-            text("""
-                INSERT INTO shopping_session (customer_id_fk, created_at, total_amount) 
-                VALUES (:customer_id, :created_at, 0)
-            """),
-            {'customer_id': customer_id, 'created_at': datetime.now()}
-        )
-        db_session.commit()
+    # If the user is a customer, handle the creation of shopping sessions
+    if user_role == 'customer':
+        customer_id = session.get('customer_id')
+        if not customer_id:
+            return redirect(url_for('login'))
+        
         active_session = db_session.execute(
-            text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id ORDER BY created_at DESC LIMIT 1"),
+            text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id"),
             {'customer_id': customer_id}
         ).fetchone()
 
-    session['shopping_session_id'] = active_session.id
+        if not active_session:
+            db_session.execute(
+                text("""
+                    INSERT INTO shopping_session (customer_id_fk, created_at, total_amount) 
+                    VALUES (:customer_id, :created_at, 0)
+                """),
+                {'customer_id': customer_id, 'created_at': datetime.now()}
+            )
+            db_session.commit()
+            active_session = db_session.execute(
+                text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id ORDER BY created_at DESC LIMIT 1"),
+                {'customer_id': customer_id}
+            ).fetchone()
+
+        session['shopping_session_id'] = active_session.id
+
+    elif user_role == 'seller':
+        seller_id = session.get('seller_id')
+        if not seller_id:
+            return redirect(url_for('login'))
 
     search = request.form.get('search', '')
     category = request.form.get('category', '')
     price_min = request.form.get('price_min', '')
     price_max = request.form.get('price_max', '')
 
+    # Define the base query for products
     query = """
         SELECT p.id, p.name, p.description, p.price, pi.image_link, u.username
         FROM product p
@@ -390,7 +400,8 @@ def shop():
 
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
-    return render_template('shop.html', products=products, categories=categories)
+    return render_template('shop.html', products=products, categories=categories, user_role=user_role)
+
 
 @app.route('/product/<int:product_id>')
 def product(product_id):
