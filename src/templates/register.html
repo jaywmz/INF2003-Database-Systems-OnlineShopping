@@ -23,5 +23,8 @@
         </div>
         <button type="submit" class="btn-register">Register</button>
     </form>
+    {% if error %}
+    <div class="error-message">{{ error }}</div>
+{% endif %}
 </div>
 {% endblock %}
