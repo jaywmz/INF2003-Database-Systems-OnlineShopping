@@ -41,10 +41,11 @@
 
 <div class="row mt-4">
 	{% for product in products %}
-		<div class="col-sm-3">
-			<div class="card">
+		<div class="col-3">
+			<div class="card h-100">
 				<div class="card-header">
-					{{ product.name }}
+					<h5>{{ product.name }}</h6>
+					<h6 class="text-muted">{{ product.username }}</h4>
 				</div>
 				<img src="data:image/jpeg;base64,{{ product.image_link }}" id="fixed-size-img" class="card-img-top" alt="{{ product.name }}">
 				<div class="card-body">

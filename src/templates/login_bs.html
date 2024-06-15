@@ -1,0 +1,26 @@
+{% extends "base_bs.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="container-fluid d-flex justify-content-center align-items-center p-5">
+    <div class="card w-75 p-5 m-5">
+        <h2 class="text-centered">Welcome back!</h2>
+        <form method="post">
+            <div class="mb-3">
+                <label for="usernameInput" class="form-label">Username</label>
+                <input type="text" class="form-control" id="usernameInput" name="username" placeholder="Enter Username" required>
+            </div>
+            <div class="mb-3">
+                <label for="passwordInput" class="form-label">Password</label>
+                <input type="password" class="form-control" id="passwordInput" name="password" placeholder="Enter Password" required>
+            </div>
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+            <a href="#" class="forgot-password">Forgot Password?</a>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

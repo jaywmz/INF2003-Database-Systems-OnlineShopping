@@ -19,7 +19,7 @@ header {
     background: white;
     color: black;
     padding: 10px 0;
-    position:fixed;
+    /* position:fixed; */
     top: 0; 
     z-index: 10;
     width: 100%;
@@ -97,7 +97,7 @@ main {
     flex: 1;
     display: flex;
     justify-content: center;
-    align-items: center;
+    /*align-items: center;*/
     width: 100%;
     max-width: 80%;
     margin: 20px auto;
@@ -229,6 +229,7 @@ footer p a:hover {
     box-sizing: border-box;
 }
 
+/*
 table {
     width: 100%;
     border-collapse: collapse;
@@ -251,6 +252,8 @@ th {
 tr:nth-child(even) {
     background: #f9f9f9;
 }
+
+*/
 
 /* Additional styles for registration form */
 .register-container {

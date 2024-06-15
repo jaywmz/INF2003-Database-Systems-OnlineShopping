@@ -2,37 +2,58 @@
 
 {% block title %}Shop - Online Shop{% endblock %}
 
+{% block styles %}
+<style>
+	#fixed-size-img {
+		width: 100%;
+		height: 150px;
+		object-fit: cover;
+	  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="shop-container">
     <h1 class="shop-title">Shop</h1>
     <h2 class="shop-subtitle">Products</h2>
-    <form method="POST" style="text-align: center;">
-        <input type="text" name="search" placeholder="Search products" value="{{ request.form.search }}">
-        <select name="category">
-            <option value="">All Categories</option>
-            {% for category in categories %}
-            <option value="{{ category.id }}" {% if request.form.category == category.id %}selected{% endif %}>{{ category.name }}</option>
-            {% endfor %}
-        </select>
-        <input type="number" name="price_min" placeholder="Min Price" value="{{ request.form.price_min }}">
-        <input type="number" name="price_max" placeholder="Max Price" value="{{ request.form.price_max }}">
-        <input type="submit" value="Search">
-    </form>
-    <ul class="product-list">
-        {% for product in products %}
-        <div class="product-item">
-            <a href="{{ url_for('product', product_id=product.id) }}">
-                <div class="product-image-container">
-                    <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
-                </div>
-                <div class="product-details">
-                    <span class="product-name">{{ product.name }}</span>
-                    <span class="product-price">${{ product.price }}</span>
-                </div>
-            </a>
-            <span class="product-seller">Seller: {{ product.username }}</span>
+    <form method="POST" class="row justify-content-center">
+        <div class="col-auto">
+            <input type="text" class="form-control" name="search" id="search-product-input" placeholder="Search Product">
         </div>
-        {% endfor %}
+        <div class="col-auto">
+            <select class="form-select" name="category">
+                <option selected>Categories</option>
+                {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.form.category == category.id %} selected {% endif %}> {{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <input type="number" class="form-control" name="price_min" id="min-price-input" placeholder="Mininum Price">
+        </div>
+        <div class="col-auto">
+            <input type="number" class="form-control" name="price_max" id="max-price-input" placeholder="Maximum Price">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </form>
+    <ul class="row row-cols-1 row-cols-md-4 mt-4">
+        {% for product in products %}
+		<div class="col">
+			<div class="card">
+				<div class="card-header">
+					<h5>{{ product.name }}</h6>
+					<h6 class="text-muted">{{ product.username }}</h4>
+				</div>
+				<img src="data:image/jpeg;base64,{{ product.image_link }}" id="fixed-size-img" class="card-img-top" alt="{{ product.name }}">
+				<div class="card-body">
+					<p class="card-text">${{ product.price }}</p>
+					<a href="{{ url_for('product', product_id=product.id) }}" class="btn btn-primary">View Product</a>
+				</div>
+			</div>
+		</div>
+	{% endfor %}
     </ul>
 </div>
 {% endblock %}
