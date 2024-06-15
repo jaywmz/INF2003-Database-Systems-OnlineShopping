@@ -3,11 +3,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="sales-data-container">
-    <h1>Sales Data</h1>
-    <h2>Number of Sales Per Product</h2>
+<div class="container-fluid">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+    <h1 class="mt-5">Sales Data</h1>
 
-    <table class="sales-data-table">
+    <table class="table">
         <thead>
             <tr>
                 <th>Image</th>
@@ -24,13 +24,10 @@
                 </td>
                 <td>{{ sale.product_name }}</td>
                 <td>{{ sale.sales_count }}</td>
-                <td><a href="{{ url_for('view_product_sales', product_id=sale.product_id) }}" class="button">View</a></td>
+                <td><a href="{{ url_for('view_product_sales', product_id=sale.product_id) }}" class="btn btn-primary">View</a></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <div class="return-button">
-        <a href="{{ url_for('dashboard') }}" class="button">Return to Dashboard</a>
-    </div>
 </div>
 {% endblock %}

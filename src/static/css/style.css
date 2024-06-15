@@ -142,7 +142,7 @@ footer p a:hover {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
+    min-height: 80vh;
 }
 
 .login-box {
@@ -228,15 +228,6 @@ footer p a:hover {
     text-decoration: underline;
 }
 
-.dashboard-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 20px;
-    width: 100%;
-    margin: 0 auto;
-}
-
 .table-section {
     flex: 1;
     box-sizing: border-box;
@@ -278,7 +269,7 @@ tr:nth-child(even) {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px;
+    padding: 20px;
     box-sizing: border-box;
 }
 
@@ -326,18 +317,6 @@ tr:nth-child(even) {
     background: #574b90;
 }
 
-/* Additional styles for shop page */
-.shop-container {
-    width: 100%;
-    height: 100%;
-    /* max-width: 800px;
-    margin: 0 auto;
-    padding: 40px;
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); */
-}
-
 .shop-title {
     text-align: center;
     font-size: 2.5em;
@@ -372,18 +351,6 @@ tr:nth-child(even) {
 
 .product-item:last-child {
     border-bottom: none;
-}
-
-.product-image-container {
-    /* width: 100px;
-    height: 100px;
-    overflow: hidden;
-    margin-bottom: 10px; */
-    overflow: hidden;
-    margin-bottom: 10px;
-    border-top-left-radius: 1em;
-    border-top-right-radius: 1em;
-    width: 100%;
 }
 
 .product-image {

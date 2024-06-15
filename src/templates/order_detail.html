@@ -3,15 +3,14 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="order-detail-container">
-    <h1>Order Detail</h1>
-    <h3>Order ID: {{ order.id }}</h3>
+<div class="container-fluid">
+    <a href="{{ url_for('view_orders') }}" class="btn btn-primary">Return to List of Orders</a>    
+    <h1 class="mt-5">Order ID {{ order.id }}</h1>
     <h3>Purchased At: {{ order.purchased_at }}</h3>
     <h3>Status: {{ order.order_status }}</h3>
-    <h3>Total Amount: {{ order.payment_value }}</h3> 
 
-    <h2>Order Items</h2>
-    <table class="order-items-table">
+    <h2>Items</h2>
+    <table class="table">
         <thead>
             <tr>
                 <th>Product Name</th>
@@ -30,10 +29,13 @@
             </tr>
             {% endfor %}
         </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3">Total</td>
+                <td>{{ order.payment_value }}</td>
+            </tr>
+        </tfoot>
     </table>
-    <div class="return-button">
-        <a href="{{ url_for('view_orders') }}" class="button">Return to List of Orders</a>
-    </div>
 </div>
 {% endblock %}
 

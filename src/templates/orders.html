@@ -2,6 +2,8 @@
 
 {% block content %}
 <div class="container-fluid">
+    <a href="{{ url_for('shop') }}" class="btn btn-primary">Return to Shop</a>
+
     <div class="row">
         <h2 class="text-center">Your Orders</h2>
     </div>
@@ -27,28 +29,16 @@
                             <td class="align-middle">${{ order.payment_value }}</td>
                             <td>
                                 {% if order_has_review(order.id) %}
-                                    <button class="btn btn-primary">
-                                        <a href="{{ url_for('view_order_review', order_id=order.id) }}" >View Review</a>
-                                    </button>
+                                <a href="{{ url_for('view_order_review', order_id=order.id) }}" class="btn btn-primary">View Review</a>
                                 {% else %}
-                                    <button  class="btn btn-success">
-                                        <a href="{{ url_for('write_order_review', order_id=order.id) }}">Write Review</a>
-                                    </button>
+                                <a href="{{ url_for('write_order_review', order_id=order.id) }}" class="btn btn-success">Write Review</a>
                                 {% endif %}
-                                    <button class="btn btn-secondary">
-                                        <a href="{{ url_for('view_order_detail', order_id=order.id) }}" >View Details</a>
-                                    </button>
+                                <a href="{{ url_for('view_order_detail', order_id=order.id) }}" class="btn btn-secondary">View Details</a>
                             </td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-12">
-            <a utton href="{{ url_for('shop') }}" class="btn btn-primary">Return to Shop</a>
         </div>
     </div>
 </div>

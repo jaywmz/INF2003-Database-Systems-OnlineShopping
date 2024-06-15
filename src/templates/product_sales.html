@@ -3,11 +3,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="product-sales-container">
-    <h1>Product Sales</h1>
+<div class="container-fluid">
+    <a href="{{ url_for('view_sales') }}" class="btn btn-primary">Return to Sales Data</a>
+    <h1 class="mt-5">Viewing Sales Data for ProductID: {{ product_sales[0].product_id }}</h1>
     {% if has_sales %}
-    <h2>Sales for Product ID: {{ product_sales[0].product_id }}</h2>
-    <table class="product-sales-table">
+    <table class="table">
         <thead>
             <tr>
                 <th>Order ID</th>
@@ -24,7 +24,7 @@
                 <td>{{ sale.customer_username }}</td>
                 <td>
                     {% if sale.has_review %}
-                    <a href="{{ url_for('view_order_review_seller', order_id=sale.order_id) }}" class="button">View Review</a>
+                    <a href="{{ url_for('view_order_review_seller', order_id=sale.order_id) }}" class="btn btn-secondary">View Review</a>
                     {% else %}
                     No Review Available
                     {% endif %}
@@ -34,10 +34,7 @@
         </tbody>
     </table>
     {% else %}
-    <p>No orders contain this product.</p>
+    <p class="text-muted">No orders for this product.</p>
     {% endif %}
-    <div class="return-button">
-        <a href="{{ url_for('view_sales') }}" class="button">Return to Sales Data</a>
-    </div>
 </div>
 {% endblock %}

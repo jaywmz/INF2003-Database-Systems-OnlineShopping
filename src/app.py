@@ -352,7 +352,7 @@ def view_product_sales(product_id):
     try:
         # Query to get order details for a specific product sold by the seller
         query = """
-            SELECT o.id as order_id, o.purchased_at, u.username as customer_username,
+            SELECT o.id as order_id, p.id as product_id, o.purchased_at, u.username as customer_username,
                    CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review
             FROM order_item oi
             JOIN `order` o ON oi.order_id_fk = o.id
@@ -362,7 +362,7 @@ def view_product_sales(product_id):
             WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
         """
         product_sales = execute_timed_query(db_session, query, {'seller_id': seller_id, 'product_id': product_id}).fetchall()
-
+        print(product_sales)
         has_sales = len(product_sales) > 0
 
         return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
