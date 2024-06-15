@@ -1,3 +1,4 @@
+<!-- app/templates/shop.html -->
 {% extends "base.html" %}
 
 {% block title %}Shop - Online Shop{% endblock %}
@@ -21,7 +22,9 @@
     <ul class="product-list">
         {% for product in products %}
         <div class="product-item">
-            <a href="{{ url_for('product', product_id=product.id) }}">
+            {% if user_role == 'customer' %}
+                <a href="{{ url_for('product', product_id=product.id) }}">
+            {% endif %}
                 <div class="product-image-container">
                     <img src="data:image/jpeg;base64,{{ product.image_link }}" alt="{{ product.name }}" class="product-image">
                 </div>
@@ -29,10 +32,13 @@
                     <span class="product-name">{{ product.name }}</span>
                     <span class="product-price">${{ product.price }}</span>
                 </div>
-            </a>
+            {% if user_role == 'customer' %}
+                </a>
+            {% endif %}
             <span class="product-seller">Seller: {{ product.username }}</span>
         </div>
         {% endfor %}
     </ul>
 </div>
 {% endblock %}
+
