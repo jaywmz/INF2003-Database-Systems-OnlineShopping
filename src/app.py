@@ -9,6 +9,8 @@ import base64
 from datetime import datetime
 import time
 import functools
+import psutil
+import logging
 
 
 app = Flask(__name__)
@@ -25,9 +27,19 @@ def execute_timed_query(db_session, query, params=None):
 
     print(f"Executing query: {query}")
     start_time = time.time()
+    start_cpu = psutil.cpu_percent(interval=None)
+    start_memory = psutil.virtual_memory().used
     result = db_session.execute(text(query), params)
     query_time = time.time() - start_time
+    end_cpu = psutil.cpu_percent(interval=None)
+    end_memory = psutil.virtual_memory().used
+
+    cpu_usage = end_cpu - start_cpu
+    memory_usage = end_memory - start_memory
     print(f"Query time: {query_time:.4f} seconds")
+    print(f"CPU usage: {cpu_usage:.2f}%")
+    print(f"Memory usage: {memory_usage / 1024:.2f} KB")
+    
     return result
 
 def fetch_all(db_session, query, params=None):
@@ -54,10 +66,18 @@ def query_timer(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
+        start_cpu = psutil.cpu_percent(interval=None)
+        start_memory = psutil.virtual_memory().used
         result = func(*args, **kwargs)
         end_time = time.time()
+        end_cpu = psutil.cpu_percent(interval=None)
+        end_memory = psutil.virtual_memory().used
         execution_time = end_time - start_time
+        cpu_usage = end_cpu - start_cpu
+        memory_usage = end_memory - start_memory
         print(f"Query '{func.__name__}' executed in {execution_time:.4f} seconds")
+        print(f"CPU usage: {cpu_usage:.2f}%")
+        print(f"Memory usage: {memory_usage / 1024:.2f} KB")
         return result
     return wrapper
 
