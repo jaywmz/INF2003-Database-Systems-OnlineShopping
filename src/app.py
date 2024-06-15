@@ -911,8 +911,6 @@ def write_order_review(order_id):
     else:
         # Render the form to write a review
         return render_template('write_order_review.html', order_id=order_id)
-
-
     
 @app.route('/sales_report')
 @login_required
@@ -920,6 +918,8 @@ def write_order_review(order_id):
 def sales_report():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
+
+    seller_id = session['seller_id']
 
     query = """
     SELECT
@@ -935,14 +935,14 @@ def sales_report():
     JOIN
         product p ON oi.product_id_fk = p.id
     WHERE
-        o.order_status = 'paid'
+        o.order_status = 'paid' AND p.seller_id_fk = :seller_id
     GROUP BY
         p.id, p.name, sale_month
     ORDER BY
         p.id, sale_month;
     """
 
-    sales_report = db_session.execute(text(query)).fetchall()
+    sales_report = db_session.execute(text(query), {'seller_id': seller_id}).fetchall()
     return render_template('sales_report.html', sales_report=sales_report)
 
 @app.route('/product_reviews')
@@ -952,6 +952,8 @@ def product_reviews():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
 
+    seller_id = session['seller_id']
+
     query = """
     SELECT 
         p.id AS product_id,
@@ -959,23 +961,23 @@ def product_reviews():
         COUNT(orv.id) AS review_count,
         AVG(orv.score) AS average_score
     FROM 
-        product p,
-        order_item oi,
-        `order` o,
-        order_review orv
+        product p
+    JOIN 
+        order_item oi ON p.id = oi.product_id_fk
+    JOIN 
+        `order` o ON oi.order_id_fk = o.id
+    JOIN 
+        order_review orv ON o.id = orv.order_id_fk
     WHERE 
-        p.id = oi.product_id_fk
-        AND oi.order_id_fk = o.id
-        AND o.id = orv.order_id_fk
+        p.seller_id_fk = :seller_id
     GROUP BY 
         p.id, p.name
     ORDER BY 
         average_score DESC, review_count DESC;
     """
 
-    product_reviews = db_session.execute(text(query)).fetchall()
+    product_reviews = db_session.execute(text(query), {'seller_id': seller_id}).fetchall()
     return render_template('product_reviews.html', product_reviews=product_reviews)
-
 
 if __name__ == '__main__':
     app.run(debug=True)
