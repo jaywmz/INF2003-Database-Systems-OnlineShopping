@@ -398,7 +398,7 @@ def view_order_review_seller(order_id):
 def shop():
     if 'role' not in session:
         return redirect(url_for('login'))
-    
+
     user_role = session.get('role')
 
     # If the user is a customer, handle the creation of shopping sessions
@@ -406,7 +406,7 @@ def shop():
         customer_id = session.get('customer_id')
         if not customer_id:
             return redirect(url_for('login'))
-        
+
         active_session = db_session.execute(
             text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id"),
             {'customer_id': customer_id}
@@ -437,6 +437,7 @@ def shop():
     category = request.form.get('category', '')
     price_min = request.form.get('price_min', '')
     price_max = request.form.get('price_max', '')
+    sort_by = request.form.get('sort_by', '')
 
     # Define the base query for products
     query = """
@@ -451,7 +452,7 @@ def shop():
     if category:
         query += " AND p.product_category_id_fk = :category"
         params['category'] = category
-    
+
     if price_min:
         query += " AND p.price >= :price_min"
         params['price_min'] = float(price_min)
@@ -460,11 +461,22 @@ def shop():
         query += " AND p.price <= :price_max"
         params['price_max'] = float(price_max)
 
+    if sort_by:
+        if sort_by == 'price_asc':
+            query += " ORDER BY p.price ASC"
+        elif sort_by == 'price_desc':
+            query += " ORDER BY p.price DESC"
+        elif sort_by == 'name_asc':
+            query += " ORDER BY p.name ASC"
+        elif sort_by == 'name_desc':
+            query += " ORDER BY p.name DESC"
+
     products = execute_timed_query(db_session, query, params).fetchall()
 
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
     return render_template('shop.html', products=products, categories=categories, user_role=user_role)
+
 
 
 @app.route('/product/<int:product_id>')
