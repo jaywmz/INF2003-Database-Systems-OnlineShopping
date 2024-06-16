@@ -454,11 +454,11 @@ def shop():
     
     if price_min:
         query += " AND p.price >= :price_min"
-        params['price_min'] = price_min
+        params['price_min'] = float(price_min)
 
     if price_max:
         query += " AND p.price <= :price_max"
-        params['price_max'] = price_max
+        params['price_max'] = float(price_max)
 
     products = execute_timed_query(db_session, query, params).fetchall()
 
