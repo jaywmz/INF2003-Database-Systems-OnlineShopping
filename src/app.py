@@ -193,6 +193,7 @@ def register():
                                            {'customer_id': customer_id, 'username': username})
 
                     db_session.commit()
+                    flash('Registration successful! Please login.', 'success')
                     return redirect(url_for('login'))
             else:
                 # Insert a default geolocation record and get the ID
@@ -214,6 +215,7 @@ def register():
                                        {'username': username, 'password': password, 'customer_id': customer_id})
 
                 db_session.commit()
+                flash('Registration successful! Please login.', 'success')
                 return redirect(url_for('login'))
         except KeyError as e:
             return render_template('register.html', error=f"Missing form field: {e}")
