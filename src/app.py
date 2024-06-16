@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -102,10 +102,6 @@ def order_has_review(order_id):
 @login_required
 def index():
     return render_template('index.html')
-
-from flask import flash, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash
-from datetime import datetime
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -395,7 +391,6 @@ def view_order_review_seller(order_id):
         return f"An error occurred: {str(e)}"
 
 
-# app/routes.py
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
 def shop():
@@ -472,9 +467,6 @@ def shop():
 
 @app.route('/product/<int:product_id>')
 def product(product_id):
-    # if 'customer_id' not in session or session.get('role') != 'customer':
-    #     return redirect(url_for('login'))
-    
     query = """
         SELECT p.id, p.name, p.description, p.weight, p.length, p.width, p.price, pi.image_link  
         FROM product p
@@ -594,6 +586,48 @@ def add_to_cart(product_id):
     db_session.execute(text(query_update_total_amount), {'session_id': shopping_session_id})
 
     db_session.commit()
+
+    return redirect(url_for('view_cart'))
+
+@app.route('/update_cart/<int:product_id>', methods=['POST'])
+@login_required
+def update_cart(product_id):
+    if 'customer_id' not in session or session.get('role') != 'customer':
+        return redirect(url_for('login'))
+
+    shopping_session_id = session.get('shopping_session_id')
+    if not shopping_session_id:
+        return redirect(url_for('shop'))
+
+    quantity = int(request.form.get('quantity', 1))
+
+    if quantity < 1:
+        quantity = 1
+
+    try:
+        # Update the quantity of the item in the cart
+        db_session.execute(text("""
+            UPDATE cart_item SET quantity = :quantity WHERE session_id_fk = :session_id AND product_id_fk = :product_id
+        """), {'quantity': quantity, 'session_id': shopping_session_id, 'product_id': product_id})
+
+        # Update total amount in the shopping session
+        db_session.execute(text("""
+            UPDATE shopping_session 
+            SET total_amount = (
+                SELECT SUM(p.price * ci.quantity) 
+                FROM cart_item ci
+                JOIN product p ON ci.product_id_fk = p.id
+                WHERE ci.session_id_fk = :session_id
+            )
+            WHERE id = :session_id
+        """), {'session_id': shopping_session_id})
+
+        db_session.commit()
+        flash('Cart updated successfully', 'success')
+    except Exception as e:
+        db_session.rollback()
+        flash('An error occurred while updating the cart', 'danger')
+        print(f"Error: {e}")
 
     return redirect(url_for('view_cart'))
 
@@ -892,8 +926,6 @@ def order_reviews(order_id):
     order_reviews = fetch_all(db_session, order_reviews_query, {'order_id': order_id})
 
     return render_template('order_reviews.html', order_reviews=order_reviews)
-
-
 
 @app.route('/view_order_review_customer/<int:order_id>')
 @login_required

@@ -24,7 +24,6 @@ header {
     z-index: 10;
     width: 100%;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-
 }
 
 .header-container {
@@ -35,6 +34,7 @@ header {
     justify-content: space-between;
     align-items: center;
 }
+
 /* Style the username */
 .username {
     cursor: pointer;
@@ -256,7 +256,6 @@ th {
 tr:nth-child(even) {
     background: #f9f9f9;
 }
-
 */
 
 /* Additional styles for registration form */
@@ -334,7 +333,7 @@ tr:nth-child(even) {
     padding: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap:40px;
+    gap: 40px;
 }
 
 .product-item {
@@ -373,4 +372,31 @@ tr:nth-child(even) {
 .product-price {
     color: #6c63ff;
     font-size: 1.2em;
+}
+
+/* Quantity Control Styling */
+.quantity-control {
+    display: flex;
+    align-items: center;
+}
+
+.quantity-control .btn-quantity {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border-radius: 0;
+}
+
+.quantity-control .quantity-input {
+    width: 50px;
+    text-align: center;
+    margin: 1 5px;
+}
+
+.update-button {
+    display: block;
+    margin-top: 10px;
 }

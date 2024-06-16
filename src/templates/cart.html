@@ -20,7 +20,16 @@
                         <tr>
                             <td class="align-middle">{{ item.name }}</td>
                             <td class="align-middle">${{ item.price }}</td>
-                            <td class="align-middle">{{ item.quantity }}</td>
+                            <td class="align-middle">
+                                <form action="{{ url_for('update_cart', product_id=item.id) }}" method="post" style="display:inline-block;">
+                                    <div class="input-group quantity-control">
+                                        <button type="button" class="btn btn-outline-secondary btn-quantity" data-action="decrease">-</button>
+                                        <input type="number" name="quantity" value="{{ item.quantity }}" min="1" class="form-control quantity-input">
+                                        <button type="button" class="btn btn-outline-secondary btn-quantity" data-action="increase">+</button>
+                                    </div>
+                                    <button type="submit" class="btn btn-secondary mt-1 update-button">Update</button>
+                                </form>
+                            </td>
                             <td class="align-middle">${{ item.total_price }}</td>
                             <td>
                                 <form action="{{ url_for('remove_from_cart', product_id=item.id) }}" method="post">
@@ -34,8 +43,7 @@
                     <tr>
                         <td colspan="3">Total</td>
                         <td>${{ total_amount }}</td>
-                        <td><a class="btn btn-primary" href="{{ url_for('checkout') }}">Checkout</a>
-                        </div></td>
+                        <td><a class="btn btn-primary" href="{{ url_for('checkout') }}">Checkout</a></td>
                     </tr>
                 </tfoot>
             </table>
@@ -46,4 +54,19 @@
         </div>
     {% endif %}
 </div>
+
+<script>
+    document.querySelectorAll('.btn-quantity').forEach(button => {
+        button.addEventListener('click', () => {
+            const input = button.parentElement.querySelector('.quantity-input');
+            let value = parseInt(input.value);
+            if (button.dataset.action === 'increase') {
+                value++;
+            } else if (button.dataset.action === 'decrease' && value > 1) {
+                value--;
+            }
+            input.value = value;
+        });
+    });
+</script>
 {% endblock %}
