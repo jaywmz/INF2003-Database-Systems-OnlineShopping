@@ -1,13 +1,111 @@
 {% extends 'base.html' %}
 
+{% block title %}Welcome to Our Online Shop{% endblock %}
+
+{% block styles %}
+<style>
+    .hero {
+        background-image: url('https://source.unsplash.com/random/1600x900');
+        background-size: cover;
+        background-position: center;
+        padding: 60px 20px;
+        text-align: center;
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+        border-radius: 10px;
+        margin-bottom: 30px;
+    }
+    .hero h1 {
+        font-size: 3em;
+        margin-bottom: 15px;
+    }
+    .hero p {
+        font-size: 1.2em;
+        margin-bottom: 25px;
+    }
+    .hero .btn-primary {
+        font-size: 1.2em;
+        padding: 10px 20px;
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+    .hero .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+    .section-title {
+        text-align: center;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        font-size: 2em;
+        color: #343a40;
+    }
+    .testimonials {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 0 auto;
+        max-width: 800px;
+    }
+    .testimonial-item {
+        text-align: center;
+        margin-bottom: 20px;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 600px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .testimonial-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .testimonial-item blockquote {
+        border: none;
+        padding-left: 0;
+        font-style: italic;
+        color: #555;
+        background: none;
+    }
+    .testimonial-item cite {
+        display: block;
+        font-size: 0.9em;
+        color: #777;
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Products</h2>
-<ul>
-    {% for product in products %}
-    <li>
-        <a href="{{ url_for('product', product_id=product.product_id) }}">{{ product.product_category_name }}</a>
-        - ${{ product.price }}
-    </li>
-    {% endfor %}
-</ul>
+<div class="container mt-5">
+    <div class="hero">
+        <h1>Welcome to Our Online Shop</h1>
+        <p>Discover amazing products at unbeatable prices</p>
+        <a href="{{ url_for('shop') }}" class="btn btn-primary">Shop Now</a>
+    </div>
+
+    <div class="testimonials">
+        <h2 class="section-title">What Our Customers Say</h2>
+        <div class="testimonial-item">
+            <blockquote class="blockquote">
+                <p class="mb-0">Great service and amazing products! Highly recommend this shop.</p>
+                <cite>John Doe</cite>
+            </blockquote>
+        </div>
+        <div class="testimonial-item">
+            <blockquote class="blockquote">
+                <p class="mb-0">Fast shipping and excellent customer support. Will buy again.</p>
+                <cite>Jane Smith</cite>
+            </blockquote>
+        </div>
+        <div class="testimonial-item">
+            <blockquote class="blockquote">
+                <p class="mb-0">The quality of the products is top-notch. Very satisfied with my purchase.</p>
+                <cite>Emily Johnson</cite>
+            </blockquote>
+        </div>
+    </div>
+</div>
 {% endblock %}
