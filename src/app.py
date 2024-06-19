@@ -174,15 +174,10 @@ def register():
                 elif user_type == 'customer' and user_dict['customer_id_fk']:
                     return render_template('register.html', error="User is already registered as a customer.")
                 else:
-                    # Insert a default geolocation record and get the ID
-                    execute_timed_query(db_session, """
-                        INSERT INTO geolocation (latitude, longitude, city, state) 
-                        VALUES (0.0, 0.0, 'Default City', 'Default State')
-                    """)
-                    geolocation_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                    geolocation_id = execute_timed_query(db_session, "SELECT id FROM geolocation WHERE country = :country AND city = :city", {'country': request.form['user_country'], 'city': request.form['user_city']}).scalar()
 
                     if user_type == 'seller':
-                        execute_timed_query(db_session, "INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
+                        execute_timed_query(db_session, "INSERT INTO seller (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                         seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
                         execute_timed_query(db_session, "UPDATE user SET seller_id_fk = :seller_id WHERE username = :username",
                                            {'seller_id': seller_id, 'username': username})
@@ -196,15 +191,10 @@ def register():
                     flash('Registration successful! Please login.', 'success')
                     return redirect(url_for('login'))
             else:
-                # Insert a default geolocation record and get the ID
-                execute_timed_query(db_session, """
-                    INSERT INTO geolocation (latitude, longitude, city, state) 
-                    VALUES (0.0, 0.0, 'Default City', 'Default State')
-                """)
-                geolocation_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+                geolocation_id = execute_timed_query(db_session, "SELECT id FROM geolocation WHERE country = :country AND city = :city", {'country': request.form['user_country'], 'city': request.form['user_city']}).scalar()
 
                 if user_type == 'seller':
-                    execute_timed_query(db_session, "INSERT INTO seller (geolocation_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
+                    execute_timed_query(db_session, "INSERT INTO seller (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                     seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
                     execute_timed_query(db_session, "INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)",
                                        {'username': username, 'password': password, 'seller_id': seller_id})
@@ -220,7 +210,22 @@ def register():
         except KeyError as e:
             return render_template('register.html', error=f"Missing form field: {e}")
     
-    return render_template('register.html')
+    geolocation_data = None
+    
+    try:
+        # Query to get the number of sales per product along with product details for the logged-in seller
+        query = """
+            SELECT country, city
+            FROM geolocation
+            ORDER BY country ASC, city ASC
+        """
+        data = execute_timed_query(db_session, query).fetchall()
+        geolocation_data = [(location.country, location.city) for location in data]
+    
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    
+    return render_template('register.html', geolocation_data=geolocation_data)
 
 
 

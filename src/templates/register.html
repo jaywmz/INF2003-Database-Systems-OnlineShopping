@@ -36,6 +36,16 @@
                     <option value="seller">Seller</option>
                 </select>
             </div>
+            <div class="form-group">
+                 <select id="country-select" name="user_country" required>
+                    <option value="" disabled selected>Select Country</option>
+                 </select>
+            </div>
+            <div class="form-group">
+                <select id="city-select" name="user_city" required>
+                    <option value="" disabled selected>Select City</option>
+                 </select>
+            </div>
             <button type="submit" class="btn-register">Register</button>
         </form>
         {% if error %}
@@ -44,9 +54,41 @@
     </div>
 </div>
 
-<!-- Add Bootstrap JS for alert functionality -->
-<link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    const countryCityData = {};
+    // Load data from Flask context
+    const data = {{ geolocation_data | tojson }};
+
+    data.forEach(function(item) {
+      const [country, city] = item;
+      if (!countryCityData[country]) {
+        countryCityData[country] = [];
+      }
+      countryCityData[country].push(city);
+    });
+
+    const $country = $('#country-select');
+    for (const country in countryCityData) {
+      $country.append(`<option value="${country}">${country}</option>`);
+    }
+
+    $('#country-select').change(function() {
+      const country = $(this).val().replace('-', ' ');
+      const $city = $('#city-select');
+      
+      $city.empty();
+      $city.append('<option value="" disabled selected>Select City</option>');
+
+      if (country && countryCityData[country]) {
+        countryCityData[country].forEach(function(city) {
+          $city.append(`<option value="${city}">${city}</option>`);
+        });
+      }
+    });
+  });
+</script>
 {% endblock %}

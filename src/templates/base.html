@@ -12,6 +12,29 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/products.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/carousel.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        .alert-success {
+            color: green;
+            background-color: #d4edda;
+            border: 1px solid green;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .alert-error {
+            color: red;
+            background-color: #f8d7da;
+            border: 1px solid red;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .alert-info {
+            color: blue;
+            background-color: #d1ecf1;
+            border: 1px solid blue;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
 
     {% block styles %} {% endblock %}
 
@@ -106,6 +129,8 @@
     </script>
     <script src="https://code.jquery.com/jquery-3.5.1.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     {% block scripts %}
     <!-- Specific scripts for each page can go here -->
     {% endblock %}
