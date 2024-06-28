@@ -4,12 +4,14 @@ This is an online shopping website built using Flask and MySQL (hosted on Heroku
 
 ## Table of Contents
 
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Database Schema](#database-schema)
-- [Project Structure](#project-structure)
+- [Online Shopping Website](#online-shopping-website)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Usage](#usage)
+  - [Database Schema](#database-schema)
+  - [Project Structure](#project-structure)
 
 ## Features
 
@@ -90,3 +92,5 @@ online-shopping-website/
 ├── app.py
 ├── requirements.txt
 └── README.md
+
+Image-based screenshots are available in the Microsoft Word Document `NotableFeatures_D8.docx` in the root directory.
