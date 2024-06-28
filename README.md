@@ -67,6 +67,14 @@ geolocations: Stores geolocation information for sellers and customers.
 
 ## Project Structure
 
+The project is structured as follows:
+
+- `src/`: Contains the source code for the application.
+- `templates/`: Contains HTML templates for the web interface.
+- `static/`: Contains static files like CSS and JavaScript.
+- `config.py`: Configuration file for the application.
+- `app.py`: The main Flask application file.
+
 online-shopping-website/
 │
 ├── templates/
