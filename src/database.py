@@ -62,5 +62,5 @@ def display_users(engine):
             print(row)
 
 # Display users after cleanup
-display_users(engine)
+#display_users(engine)
 

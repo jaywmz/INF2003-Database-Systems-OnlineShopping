@@ -85,7 +85,6 @@ def query_timer(func):
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        print("Session: ", session)
         if 'logged_in' not in session or not session['logged_in']:
             return redirect(url_for('login', next=request.url))
         return f(*args, **kwargs)
@@ -227,9 +226,6 @@ def register():
     
     return render_template('register.html', geolocation_data=geolocation_data)
 
-
-
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -365,7 +361,6 @@ def view_product_sales(product_id):
             WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
         """
         product_sales = execute_timed_query(db_session, query, {'seller_id': seller_id, 'product_id': product_id}).fetchall()
-        print(product_sales)
         has_sales = len(product_sales) > 0
 
         return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
@@ -481,8 +476,6 @@ def shop():
     categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
 
     return render_template('shop.html', products=products, categories=categories, user_role=user_role)
-
-
 
 @app.route('/product/<int:product_id>')
 def product(product_id):
