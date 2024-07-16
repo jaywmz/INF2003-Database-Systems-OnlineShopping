@@ -46,25 +46,7 @@
                     <option value="" disabled selected>Select City</option>
                  </select>
             </div>
-            <div class="form-group">
-                <!-- Add database type selection -->
-                <label>Choose Database Type:</label><br>
-                <div>
-                    <input type="radio" id="mysql" name="db_type" value="mysql" checked>
-                    <label for="mysql">MySQL</label>
-                </div>
-                <div>
-                    <input type="radio" id="mongodb" name="db_type" value="mongodb">
-                    <label for="mongodb">MongoDB</label>
-                </div>
-            </div>
-            <div class ="form-group">
-                <button type="submit" class="btn-register">Register</button>
-            </div>
-           
-            <div class="form-group">
-                <button id="sql-nosql-switch" class="btn btn-primary">Switch Database Type</button>
-            </div>
+            <button type="submit" class="btn-register">Register</button>
         </form>
         {% if error %}
         <div class="error-message">{{ error }}</div>
@@ -76,65 +58,37 @@
 
 {% block scripts %}
 <script>
-$(document).ready(function() {
+  $(document).ready(function() {
     const countryCityData = {};
     // Load data from Flask context
-    const data = {{ geolocation_data | tojson if geolocation_data is not none else '{}' }};
-    console.log('Geolocation Data:', data);  // Check data in the console
+    const data = {{ geolocation_data | tojson }};
 
-    // Populate countryCityData based on geolocation_data
     data.forEach(function(item) {
-        const [country, city] = item;
-        if (!countryCityData[country]) {
-            countryCityData[country] = [];
-        }
-        countryCityData[country].push(city);
+      const [country, city] = item;
+      if (!countryCityData[country]) {
+        countryCityData[country] = [];
+      }
+      countryCityData[country].push(city);
     });
 
-    // Populate country select options
     const $country = $('#country-select');
     for (const country in countryCityData) {
-        $country.append(`<option value="${country}">${country}</option>`);
+      $country.append(`<option value="${country}">${country}</option>`);
     }
 
-    // Handle country selection and populate city options
     $('#country-select').change(function() {
-        const country = $(this).val().replace('-', ' ');
-        const $city = $('#city-select');
-        
-        $city.empty();
-        $city.append('<option value="" disabled selected>Select City</option>');
+      const country = $(this).val().replace('-', ' ');
+      const $city = $('#city-select');
+      
+      $city.empty();
+      $city.append('<option value="" disabled selected>Select City</option>');
 
-        if (country && countryCityData[country]) {
-            countryCityData[country].forEach(function(city) {
-                $city.append(`<option value="${city}">${city}</option>`);
-            });
-        }
-    });
-
-    
-    // Switch database button click handler
-    $('#sql-nosql-switch').click(function() {
-        // Example: Get selected database type dynamically
-        const selectedDbType = $('input[name="db_type"]:checked').val();
-        if (!selectedDbType) {
-            console.error('No database type selected!');
-            return;
-        }
-
-        $.ajax({
-            type: 'POST',
-            url: '/switch_database',
-            data: { db_type: selectedDbType },
-            success: function(response) {
-                console.log('Switched to database:', selectedDbType);
-                window.location.reload();  // Reload the page after successful switch
-            },
-            error: function(error) {
-                console.error('Error switching database:', error);
-            }
+      if (country && countryCityData[country]) {
+        countryCityData[country].forEach(function(city) {
+          $city.append(`<option value="${city}">${city}</option>`);
         });
+      }
     });
-});
+  });
 </script>
 {% endblock %}
