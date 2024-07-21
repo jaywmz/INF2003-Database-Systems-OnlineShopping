@@ -1,16 +1,20 @@
 from sqlalchemy import create_engine, text
+from pymongo import MongoClient
 
-# Connection string without ssl-mode
+# MySQL connection string
 db_connection_string = "mysql+pymysql://avnadmin:AVNS_TTYe0dDgdtJRZpF8DwC@db-proj-db-proj.h.aivencloud.com:12733/DBProject"
 
 # Create engine with minimal SSL arguments
-engine = create_engine(db_connection_string,
-    connect_args={
-        "ssl": {
-            "ssl": True
-        }
-    }
-)
+engine = create_engine(db_connection_string, connect_args={"ssl": {"ssl": True}})
+
+# MongoDB connection string
+mongodb_connection_string = "mongodb://mo9695_DBProject:Cisco123@mongo6.serv00.com:27017/mo9695_DBProject"
+
+# Create a MongoDB client
+mongo_client = MongoClient(mongodb_connection_string)
+
+# Access the specific database
+mongo_db = mongo_client["mo9695_DBProject"]
 
 # Function to reset auto-increment values
 def reset_auto_increment(engine):
@@ -30,9 +34,6 @@ def reset_auto_increment(engine):
         conn.commit()
         print("Auto-increment values reset successfully.")
 
-# Execute the function
-# reset_auto_increment(engine)
-
 # Function to clean up user-related tables
 def cleanup_user_related_tables(engine):
     with engine.connect() as conn:
@@ -51,9 +52,6 @@ def cleanup_user_related_tables(engine):
         conn.commit()
         print("Cleaned up user-related tables successfully.")
 
-# Execute cleanup
-# cleanup_user_related_tables(engine)
-
 # Function to display users (for verification)
 def display_users(engine):
     with engine.connect() as conn:
@@ -61,6 +59,7 @@ def display_users(engine):
         for row in result:
             print(row)
 
-# Display users after cleanup
-#display_users(engine)
-
+# Example usage
+# reset_auto_increment(engine)
+# cleanup_user_related_tables(engine)
+# display_users(engine)

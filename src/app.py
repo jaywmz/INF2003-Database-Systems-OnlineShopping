@@ -1,9 +1,9 @@
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
-from database import engine
+from database import engine, mongo_db
 from werkzeug.utils import secure_filename
 import base64
 from datetime import datetime
@@ -11,7 +11,10 @@ import time
 import functools
 import psutil
 import logging
-
+from bson import ObjectId
+import signal
+import os
+from werkzeug.serving import is_running_from_reloader
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -91,11 +94,8 @@ def login_required(f):
     return decorated_function
 
 def order_has_review(order_id):
-    # Query to check if the order has a review
-    review_count = db_session.execute(text("SELECT COUNT(*) FROM order_review WHERE order_id_fk = :order_id"),
-                                      {'order_id': order_id}).scalar()
+    review_count = mongo_db.order_reviews.count_documents({"order_id": order_id})
     return review_count > 0
-
 
 @app.route('/')
 @login_required
@@ -144,7 +144,6 @@ def login():
     
     return render_template('login.html')
 
-
 @app.route('/logout')
 def logout():
     session.pop('username', None)
@@ -159,10 +158,9 @@ def register():
     if request.method == 'POST':
         try:
             username = request.form['username']
-            password = generate_password_hash(request.form['password'])  # Hash the password
+            password = generate_password_hash(request.form['password'])
             user_type = request.form['user_type']
             
-            # Check if the username already exists
             result = execute_timed_query(db_session, "SELECT * FROM user WHERE username = :username", {'username': username})
             user = result.fetchone()
             
@@ -178,13 +176,11 @@ def register():
                     if user_type == 'seller':
                         execute_timed_query(db_session, "INSERT INTO seller (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                         seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                        execute_timed_query(db_session, "UPDATE user SET seller_id_fk = :seller_id WHERE username = :username",
-                                           {'seller_id': seller_id, 'username': username})
+                        execute_timed_query(db_session, "UPDATE user SET seller_id_fk = :seller_id WHERE username = :username", {'seller_id': seller_id, 'username': username})
                     elif user_type == 'customer':
                         execute_timed_query(db_session, "INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                         customer_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                        execute_timed_query(db_session, "UPDATE user SET customer_id_fk = :customer_id WHERE username = :username",
-                                           {'customer_id': customer_id, 'username': username})
+                        execute_timed_query(db_session, "UPDATE user SET customer_id_fk = :customer_id WHERE username = :username", {'customer_id': customer_id, 'username': username})
 
                     db_session.commit()
                     flash('Registration successful! Please login.', 'success')
@@ -195,13 +191,11 @@ def register():
                 if user_type == 'seller':
                     execute_timed_query(db_session, "INSERT INTO seller (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                     seller_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                    execute_timed_query(db_session, "INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)",
-                                       {'username': username, 'password': password, 'seller_id': seller_id})
+                    execute_timed_query(db_session, "INSERT INTO user (username, password, seller_id_fk) VALUES (:username, :password, :seller_id)", {'username': username, 'password': password, 'seller_id': seller_id})
                 elif user_type == 'customer':
                     execute_timed_query(db_session, "INSERT INTO customer (geolocation_id_fk) VALUES (:geolocation_id)", {'geolocation_id': geolocation_id})
                     customer_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-                    execute_timed_query(db_session, "INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)",
-                                       {'username': username, 'password': password, 'customer_id': customer_id})
+                    execute_timed_query(db_session, "INSERT INTO user (username, password, customer_id_fk) VALUES (:username, :password, :customer_id)", {'username': username, 'password': password, 'customer_id': customer_id})
 
                 db_session.commit()
                 flash('Registration successful! Please login.', 'success')
@@ -212,7 +206,6 @@ def register():
     geolocation_data = None
     
     try:
-        # Query to get the number of sales per product along with product details for the logged-in seller
         query = """
             SELECT country, city
             FROM geolocation
@@ -235,18 +228,7 @@ def dashboard():
     seller_id = session['seller_id']
     
     try:
-        # Construct the SQL query with timing
-        query = """
-            SELECT p.*, pc.name as category_name, pi.image_link
-            FROM product p
-            JOIN product_category pc ON p.product_category_id_fk = pc.id
-            JOIN product_image pi ON p.id = pi.product_id_fk
-            WHERE p.seller_id_fk = :seller_id
-        """
-        
-        # Execute the timed query
-        products = execute_timed_query(db_session, query, {'seller_id': seller_id}).fetchall()
-        
+        products = list(mongo_db.products.find({"seller_id": seller_id}))
         return render_template('dashboard.html', products=products)
     
     except Exception as e:
@@ -271,41 +253,30 @@ def add_product():
         width = request.form['width']
         price = request.form['price']
 
-        # Handle file upload
         image_file = request.files['image_file']
         if image_file:
             image_data = base64.b64encode(image_file.read()).decode('utf-8')
 
             try:
-                # Insert the product and link it to the seller
-                query = """
-                    INSERT INTO product (name, description, product_category_id_fk, price, weight, length, height, width, seller_id_fk)
-                    VALUES (:name, :description, :product_category_id_fk, :price, :weight, :length, :height, :width, :seller_id)
-                """
-                execute_timed_query(db_session, query, {'name': name, 'description': description, 
-                                                       'product_category_id_fk': category, 'weight': weight, 
-                                                       'length': length, 'height': height, 'width': width, 
-                                                       'price': price, 'seller_id': seller_id})
-
-                product_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-
-                # Insert the product image
-                query = """
-                    INSERT INTO product_image (product_id_fk, image_link)
-                    VALUES (:product_id, :image_link)
-                """
-                execute_timed_query(db_session, query, {'product_id': product_id, 'image_link': image_data})
-
-                db_session.commit()
-
+                product = {
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "weight": weight,
+                    "length": length,
+                    "height": height,
+                    "width": width,
+                    "price": price,
+                    "image_link": image_data,
+                    "seller_id": seller_id
+                }
+                mongo_db.products.insert_one(product)
                 return redirect(url_for('dashboard'))
             
             except Exception as e:
                 return f"An error occurred: {str(e)}"
 
     return render_template('add_product.html')
-
-
 
 @app.route('/view_sales')
 @login_required
@@ -316,29 +287,21 @@ def view_sales():
     seller_id = session['seller_id']
 
     try:
-        # Query to get the number of sales per product along with product details for the logged-in seller
-        query = """
-            SELECT 
-                p.id as product_id, 
-                p.name as product_name, 
-                pi.image_link, 
-                COALESCE(sales.sales_count, 0) as sales_count
-            FROM product p
-            LEFT JOIN product_image pi ON p.id = pi.product_id_fk
-            LEFT JOIN (
-                SELECT oi.product_id_fk, COUNT(oi.product_id_fk) as sales_count
-                FROM order_item oi
-                GROUP BY oi.product_id_fk
-            ) as sales ON p.id = sales.product_id_fk
-            WHERE p.seller_id_fk = :seller_id
-        """
-        sales_data = execute_timed_query(db_session, query, {'seller_id': seller_id}).fetchall()
+        pipeline = [
+            {"$match": {"seller_id": seller_id}},
+            {"$unwind": "$items"},
+            {"$group": {
+                "_id": {"product_id": "$items.product_id", "name": "$items.name"},
+                "sales_count": {"$sum": "$items.quantity"}
+            }},
+            {"$sort": {"_id.product_id": 1}}
+        ]
+        sales_data = list(mongo_db.orders.aggregate(pipeline))
 
         return render_template('view_sales.html', sales_data=sales_data)
     
     except Exception as e:
         return f"An error occurred: {str(e)}"
-
 
 @app.route('/view_product_sales/<int:product_id>')
 @login_required
@@ -349,18 +312,35 @@ def view_product_sales(product_id):
     seller_id = session['seller_id']
 
     try:
-        # Query to get order details for a specific product sold by the seller
-        query = """
-            SELECT o.id as order_id, p.id as product_id, o.purchased_at, u.username as customer_username,
-                   CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review
-            FROM order_item oi
-            JOIN `order` o ON oi.order_id_fk = o.id
-            JOIN user u ON o.customer_id_fk = u.customer_id_fk
-            JOIN product p ON oi.product_id_fk = p.id
-            LEFT JOIN order_review orv ON o.id = orv.order_id_fk
-            WHERE p.seller_id_fk = :seller_id AND p.id = :product_id
-        """
-        product_sales = execute_timed_query(db_session, query, {'seller_id': seller_id, 'product_id': product_id}).fetchall()
+        pipeline = [
+            {"$match": {"seller_id": seller_id, "items.product_id": product_id}},
+            {"$unwind": "$items"},
+            {"$match": {"items.product_id": product_id}},
+            {"$lookup": {
+                "from": "users",
+                "localField": "customer_id",
+                "foreignField": "customer_id_fk",
+                "as": "customer"
+            }},
+            {"$unwind": "$customer"},
+            {"$lookup": {
+                "from": "order_reviews",
+                "localField": "order_id",
+                "foreignField": "order_id",
+                "as": "reviews"
+            }},
+            {"$unwind": {
+                "path": "$reviews",
+                "preserveNullAndEmptyArrays": True
+            }},
+            {"$project": {
+                "order_id": 1,
+                "purchased_at": 1,
+                "customer_username": "$customer.username",
+                "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]}
+            }}
+        ]
+        product_sales = list(mongo_db.orders.aggregate(pipeline))
         has_sales = len(product_sales) > 0
 
         return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
@@ -375,23 +355,13 @@ def view_order_review_seller(order_id):
         return redirect(url_for('login'))
 
     try:
-        # Fetch the review for the given order_id
-        query_review = """
-            SELECT * FROM order_review WHERE order_id_fk = :order_id
-        """
-        order_review = execute_timed_query(db_session, query_review, {'order_id': order_id}).fetchone()
-
-        # Fetch the order item associated with the order
-        query_order_item = """
-            SELECT * FROM order_item WHERE order_id_fk = :order_id
-        """
-        order_item = execute_timed_query(db_session, query_order_item, {'order_id': order_id}).fetchone()
+        order_review = mongo_db.order_reviews.find_one({"order_id": order_id})
+        order_item = mongo_db.orders.find_one({"items.order_id": order_id}, {"items.$": 1})
 
         return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
     
     except Exception as e:
         return f"An error occurred: {str(e)}"
-
 
 @app.route('/shop', methods=['GET', 'POST'])
 @login_required
@@ -401,32 +371,23 @@ def shop():
 
     user_role = session.get('role')
 
-    # If the user is a customer, handle the creation of shopping sessions
     if user_role == 'customer':
         customer_id = session.get('customer_id')
         if not customer_id:
             return redirect(url_for('login'))
 
-        active_session = db_session.execute(
-            text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id"),
-            {'customer_id': customer_id}
-        ).fetchone()
+        active_session = mongo_db.shopping_sessions.find_one({"customer_id_fk": customer_id})
 
         if not active_session:
-            db_session.execute(
-                text("""
-                    INSERT INTO shopping_session (customer_id_fk, created_at, total_amount) 
-                    VALUES (:customer_id, :created_at, 0)
-                """),
-                {'customer_id': customer_id, 'created_at': datetime.now()}
-            )
-            db_session.commit()
-            active_session = db_session.execute(
-                text("SELECT * FROM shopping_session WHERE customer_id_fk = :customer_id ORDER BY created_at DESC LIMIT 1"),
-                {'customer_id': customer_id}
-            ).fetchone()
+            active_session = {
+                "customer_id_fk": customer_id,
+                "created_at": datetime.now(),
+                "total_amount": 0
+            }
+            mongo_db.shopping_sessions.insert_one(active_session)
+            active_session = mongo_db.shopping_sessions.find_one({"customer_id_fk": customer_id})
 
-        session['shopping_session_id'] = active_session.id
+        session['shopping_session_id'] = str(active_session["_id"])
 
     elif user_role == 'seller':
         seller_id = session.get('seller_id')
@@ -439,57 +400,37 @@ def shop():
     price_max = request.form.get('price_max', '')
     sort_by = request.form.get('sort_by', '')
 
-    # Define the base query for products
-    query = """
-        SELECT p.id, p.name, p.description, p.price, pi.image_link, u.username
-        FROM product p
-        JOIN product_image pi ON p.id = pi.product_id_fk
-        JOIN user u ON p.seller_id_fk = u.seller_id_fk
-        WHERE p.name LIKE :search
-    """
-    params = {'search': '%' + search + '%'}
-
+    query = {"name": {"$regex": search, "$options": "i"}}
     if category:
-        query += " AND p.product_category_id_fk = :category"
-        params['category'] = category
-
+        query["category"] = category
     if price_min:
-        query += " AND p.price >= :price_min"
-        params['price_min'] = float(price_min)
-
+        query["price"] = {"$gte": float(price_min)}
     if price_max:
-        query += " AND p.price <= :price_max"
-        params['price_max'] = float(price_max)
+        query["price"] = {"$lte": float(price_max)}
 
+    sort_criteria = None
     if sort_by:
         if sort_by == 'price_asc':
-            query += " ORDER BY p.price ASC"
+            sort_criteria = [("price", 1)]
         elif sort_by == 'price_desc':
-            query += " ORDER BY p.price DESC"
+            sort_criteria = [("price", -1)]
         elif sort_by == 'name_asc':
-            query += " ORDER BY p.name ASC"
+            sort_criteria = [("name", 1)]
         elif sort_by == 'name_desc':
-            query += " ORDER BY p.name DESC"
+            sort_criteria = [("name", -1)]
 
-    products = execute_timed_query(db_session, query, params).fetchall()
+    products = list(mongo_db.products.find(query, sort=sort_criteria))
 
-    categories = db_session.execute(text("SELECT id, name FROM product_category")).fetchall()
+    categories = mongo_db.products.distinct("category")
 
     return render_template('shop.html', products=products, categories=categories, user_role=user_role)
 
-@app.route('/product/<int:product_id>')
+@app.route('/product/<product_id>')
 def product(product_id):
-    query = """
-        SELECT p.id, p.name, p.description, p.weight, p.length, p.width, p.price, pi.image_link  
-        FROM product p
-        JOIN product_image pi ON p.id = pi.product_id_fk
-        WHERE p.id = :product_id
-    """
-    product = execute_timed_query(db_session, query, {'product_id': product_id}).fetchone()
-    
+    product = mongo_db.products.find_one({"_id": ObjectId(product_id)})
     return render_template('product.html', product=product)
 
-@app.route('/edit_product/<int:product_id>', methods=['GET', 'POST'])
+@app.route('/edit_product/<product_id>', methods=['GET', 'POST'])
 @login_required
 def edit_product(product_id):
     if 'seller_id' not in session:
@@ -505,53 +446,42 @@ def edit_product(product_id):
         height = request.form['height']
         width = request.form['width']
         
-        query_update = """
-            UPDATE product 
-            SET name = :name, description = :description, weight = :weight, 
-                length = :length, height = :height, width = :width 
-            WHERE id = :product_id
-        """
-        db_session.execute(text(query_update), {'name': name, 'description': description, 
-                                                'weight': weight, 'length': length, 
-                                                'height': height, 'width': width, 
-                                                'product_id': product_id})
-        db_session.commit()
+        mongo_db.products.update_one(
+            {"_id": ObjectId(product_id), "seller_id": seller_id},
+            {"$set": {
+                "name": name,
+                "description": description,
+                "weight": weight,
+                "length": length,
+                "height": height,
+                "width": width
+            }}
+        )
         
         return redirect(url_for('dashboard'))
     
-    query_product = """
-        SELECT p.* 
-        FROM product p
-        JOIN order_item oi ON p.id = oi.product_id_fk
-        WHERE p.id = :product_id AND p.seller_id_fk = :seller_id
-    """
-    product = execute_timed_query(db_session, query_product, {'product_id': product_id, 'seller_id': seller_id}).fetchone()
-    
+    product = mongo_db.products.find_one({"_id": ObjectId(product_id), "seller_id": seller_id})
     return render_template('edit_product.html', product=product)
 
-
-
-@app.route('/order/<int:order_id>/payment')
+@app.route('/order/<order_id>/payment')
 @login_required
 def order_payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
     
-    order_payment = db_session.execute(text("SELECT * FROM order_payment WHERE order_id_fk = :order_id"), {'order_id': order_id}).fetchall()
-    
+    order_payment = mongo_db.order_payments.find({"order_id_fk": ObjectId(order_id)}).all()
     return render_template('order_payment.html', order_payment=order_payment)
 
-@app.route('/order/<int:order_id>/review')
+@app.route('/order/<order_id>/review')
 @login_required
 def order_review(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
     
-    order_review = db_session.execute(text("SELECT * FROM order_review WHERE order_id_fk = :order_id"), {'order_id': order_id}).fetchall()
-    
+    order_review = mongo_db.order_reviews.find({"order_id_fk": ObjectId(order_id)}).all()
     return render_template('order_review.html', order_review=order_review)
 
-@app.route('/add_to_cart/<int:product_id>', methods=['POST'])
+@app.route('/add_to_cart/<product_id>', methods=['POST'])
 @login_required
 def add_to_cart(product_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
@@ -563,45 +493,27 @@ def add_to_cart(product_id):
 
     quantity = int(request.form.get('quantity', 1))
 
-    # Check if the item is already in the cart
-    query_check_cart = """
-        SELECT * FROM cart_item WHERE session_id_fk = :session_id AND product_id_fk = :product_id
-    """
-    result = execute_timed_query(db_session, query_check_cart, {'session_id': shopping_session_id, 'product_id': product_id})
-    cart_item = result.fetchone()
+    cart_item = mongo_db.cart_items.find_one({"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)})
 
     if cart_item:
-        # Update quantity if item is already in the cart
-        new_quantity = cart_item.quantity + quantity
-        query_update_cart = """
-            UPDATE cart_item SET quantity = :quantity WHERE session_id_fk = :session_id AND product_id_fk = :product_id
-        """
-        db_session.execute(text(query_update_cart), {'quantity': new_quantity, 'session_id': shopping_session_id, 'product_id': product_id})
+        new_quantity = cart_item['quantity'] + quantity
+        mongo_db.cart_items.update_one(
+            {"_id": cart_item["_id"]},
+            {"$set": {"quantity": new_quantity}}
+        )
     else:
-        # Add new item to the cart
-        query_insert_cart = """
-            INSERT INTO cart_item (session_id_fk, product_id_fk, quantity) VALUES (:session_id, :product_id, :quantity)
-        """
-        db_session.execute(text(query_insert_cart), {'session_id': shopping_session_id, 'product_id': product_id, 'quantity': quantity})
+        cart_item = {
+            "session_id_fk": ObjectId(shopping_session_id),
+            "product_id_fk": ObjectId(product_id),
+            "quantity": quantity
+        }
+        mongo_db.cart_items.insert_one(cart_item)
 
-    # Update total amount in the shopping session
-    query_update_total_amount = """
-        UPDATE shopping_session 
-        SET total_amount = (
-            SELECT SUM(p.price * ci.quantity) 
-            FROM cart_item ci 
-            JOIN product p ON ci.product_id_fk = p.id 
-            WHERE ci.session_id_fk = :session_id
-        ) 
-        WHERE id = :session_id
-    """
-    db_session.execute(text(query_update_total_amount), {'session_id': shopping_session_id})
-
-    db_session.commit()
+    update_total_amount(ObjectId(shopping_session_id))
 
     return redirect(url_for('view_cart'))
 
-@app.route('/update_cart/<int:product_id>', methods=['POST'])
+@app.route('/update_cart/<product_id>', methods=['POST'])
 @login_required
 def update_cart(product_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
@@ -616,35 +528,17 @@ def update_cart(product_id):
     if quantity < 1:
         quantity = 1
 
-    try:
-        # Update the quantity of the item in the cart
-        db_session.execute(text("""
-            UPDATE cart_item SET quantity = :quantity WHERE session_id_fk = :session_id AND product_id_fk = :product_id
-        """), {'quantity': quantity, 'session_id': shopping_session_id, 'product_id': product_id})
+    mongo_db.cart_items.update_one(
+        {"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)},
+        {"$set": {"quantity": quantity}}
+    )
 
-        # Update total amount in the shopping session
-        db_session.execute(text("""
-            UPDATE shopping_session 
-            SET total_amount = (
-                SELECT SUM(p.price * ci.quantity) 
-                FROM cart_item ci
-                JOIN product p ON ci.product_id_fk = p.id
-                WHERE ci.session_id_fk = :session_id
-            )
-            WHERE id = :session_id
-        """), {'session_id': shopping_session_id})
+    update_total_amount(ObjectId(shopping_session_id))
 
-        db_session.commit()
-        flash('Cart updated successfully', 'success')
-    except Exception as e:
-        db_session.rollback()
-        flash('An error occurred while updating the cart', 'danger')
-        print(f"Error: {e}")
-
+    flash('Cart updated successfully', 'success')
     return redirect(url_for('view_cart'))
 
-
-@app.route('/remove_from_cart/<int:product_id>', methods=['POST'])
+@app.route('/remove_from_cart/<product_id>', methods=['POST'])
 @login_required
 def remove_from_cart(product_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
@@ -654,30 +548,13 @@ def remove_from_cart(product_id):
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    # Delete the item from the cart
-    query_delete_cart_item = """
-        DELETE FROM cart_item 
-        WHERE session_id_fk = :session_id AND product_id_fk = :product_id
-    """
-    execute_timed_query(db_session, query_delete_cart_item, {'session_id': shopping_session_id, 'product_id': product_id})
-    
-    # Update the total amount
-    query_update_total_amount = """
-        UPDATE shopping_session 
-        SET total_amount = (
-            SELECT SUM(p.price * ci.quantity) 
-            FROM cart_item ci
-            JOIN product p ON ci.product_id_fk = p.id
-            WHERE ci.session_id_fk = :session_id
-        ) 
-        WHERE id = :session_id
-    """
-    db_session.execute(text(query_update_total_amount), {'session_id': shopping_session_id})
+    mongo_db.cart_items.delete_one(
+        {"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)}
+    )
 
-    db_session.commit()
+    update_total_amount(ObjectId(shopping_session_id))
 
     return redirect(url_for('view_cart'))
-
 
 @app.route('/cart')
 @login_required
@@ -689,40 +566,37 @@ def view_cart():
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    # Retrieve cart items
-    query_cart_items = """
-        SELECT p.id, p.name, p.price, ci.quantity, (p.price * ci.quantity) as total_price
-        FROM cart_item ci
-        JOIN product p ON ci.product_id_fk = p.id
-        WHERE ci.session_id_fk = :session_id
-    """
-    cart_items = execute_timed_query(db_session, query_cart_items, {'session_id': shopping_session_id}).fetchall()
+    cart_items = list(mongo_db.cart_items.aggregate([
+        {"$match": {"session_id_fk": ObjectId(shopping_session_id)}},
+        {"$lookup": {
+            "from": "products",
+            "localField": "product_id_fk",
+            "foreignField": "_id",
+            "as": "product"
+        }},
+        {"$unwind": "$product"},
+        {"$project": {
+            "product_id": "$product._id",
+            "name": "$product.name",
+            "price": "$product.price",
+            "quantity": 1,
+            "total_price": {"$multiply": ["$product.price", "$quantity"]}
+        }}
+    ]))
 
-    # Retrieve total amount
-    query_total_amount = """
-        SELECT total_amount FROM shopping_session WHERE id = :session_id
-    """
-    total_amount = db_session.execute(text(query_total_amount), {'session_id': shopping_session_id}).scalar()
+    total_amount = mongo_db.shopping_sessions.find_one({"_id": ObjectId(shopping_session_id)})['total_amount']
 
     return render_template('cart.html', cart_items=cart_items, total_amount=total_amount)
 
-
 def ensure_payment_types():
     payment_types = ['Visa', 'Credit Card', 'Paynow']
-    existing_payment_types = db_session.execute(text("""
-        SELECT payment_name FROM payment_type
-    """)).fetchall()
-    
-    existing_payment_names = [ptype[0] for ptype in existing_payment_types]
-    
+    existing_payment_types = list(mongo_db.payment_types.find({}, {"payment_name": 1}))
+
+    existing_payment_names = [ptype['payment_name'] for ptype in existing_payment_types]
+
     for payment_type in payment_types:
         if payment_type not in existing_payment_names:
-            query_insert_payment_type = """
-                INSERT INTO payment_type (payment_name) VALUES (:payment_name)
-            """
-            execute_timed_query(db_session, query_insert_payment_type, {'payment_name': payment_type})
-            
-    db_session.commit()
+            mongo_db.payment_types.insert_one({"payment_name": payment_type})
 
 ensure_payment_types()
 
@@ -737,57 +611,52 @@ def checkout():
         return redirect(url_for('shop'))
 
     if request.method == 'POST':
-        # Handle the POST request for checkout
         order_id = request.form['order_id']
         payment_type_id = request.form['payment_type_id']
 
-        # Insert into order_payment
-        query_insert_order_payment = """
-            INSERT INTO order_payment (order_id_fk, payment_type_id_fk)
-            VALUES (:order_id, :payment_type_id)
-        """
-        execute_timed_query(db_session, query_insert_order_payment, {'order_id': order_id, 'payment_type_id': payment_type_id})
-        
-        # Update order status and purchase date
-        query_update_order_status = """
-            UPDATE `order`
-            SET order_status = 'paid', purchased_at = :purchased_at
-            WHERE id = :order_id
-        """
-        db_session.execute(text(query_update_order_status), {'order_id': order_id, 'purchased_at': datetime.now()})
-        
-        # Commit the transaction
-        db_session.commit()
+        order_payment = {
+            "order_id_fk": ObjectId(order_id),
+            "payment_type_id_fk": ObjectId(payment_type_id)
+        }
+        mongo_db.order_payments.insert_one(order_payment)
+
+        mongo_db.orders.update_one(
+            {"_id": ObjectId(order_id)},
+            {"$set": {"order_status": "paid", "purchased_at": datetime.now()}}
+        )
 
         return redirect(url_for('shop'))
     else:
-        # Handle the GET request for showing the checkout page
-        # Create an order
         customer_id = session['customer_id']
-        query_insert_order = """
-            INSERT INTO `order` (customer_id_fk, order_status)
-            VALUES (:customer_id, 'unpaid')
-        """
-        db_session.execute(text(query_insert_order), {'customer_id': customer_id})
-        db_session.commit()
-        
-        order_id = db_session.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+        order = {
+            "customer_id_fk": customer_id,
+            "order_status": "unpaid",
+            "items": []
+        }
+        mongo_db.orders.insert_one(order)
+        order_id = order['_id']
 
-        # Fetch cart items for summary
-        query_cart_items = """
-            SELECT p.name, p.price, ci.quantity, (p.price * ci.quantity) as total_price
-            FROM cart_item ci
-            JOIN product p ON ci.product_id_fk = p.id
-            WHERE ci.session_id_fk = :session_id
-        """
-        cart_items = execute_timed_query(db_session, query_cart_items, {'session_id': shopping_session_id}).fetchall()
+        cart_items = list(mongo_db.cart_items.aggregate([
+            {"$match": {"session_id_fk": ObjectId(shopping_session_id)}},
+            {"$lookup": {
+                "from": "products",
+                "localField": "product_id_fk",
+                "foreignField": "_id",
+                "as": "product"
+            }},
+            {"$unwind": "$product"},
+            {"$project": {
+                "product_id": "$product._id",
+                "name": "$product.name",
+                "price": "$product.price",
+                "quantity": 1,
+                "total_price": {"$multiply": ["$product.price", "$quantity"]}
+            }}
+        ]))
 
-        # Calculate total amount from the cart items
-        total_amount = sum(item.total_price for item in cart_items)
+        total_amount = sum(item['total_price'] for item in cart_items)
 
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
-
-
 
 @app.route('/process_checkout', methods=['POST'])
 @login_required
@@ -799,20 +668,18 @@ def process_checkout():
     total_amount = request.form['total_amount']
     return redirect(url_for('payment', order_id=order_id, total_amount=total_amount))
 
-
-@app.route('/payment/<int:order_id>', methods=['GET', 'POST'])
+@app.route('/payment/<order_id>', methods=['GET', 'POST'])
 @login_required
 def payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
     total_amount = request.args.get('total_amount')
-    payment_types = db_session.execute(text("SELECT * FROM payment_type")).fetchall()
-    
+    payment_types = list(mongo_db.payment_types.find({}))
+
     return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
-
-@app.route('/process_payment/<int:order_id>', methods=['POST'])
+@app.route('/process_payment/<order_id>', methods=['POST'])
 @login_required
 def process_payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
@@ -820,64 +687,37 @@ def process_payment(order_id):
 
     payment_type_id = request.form['payment_type_id']
 
-    # Get total_amount from shopping session using customer_id_fk from the order table
-    query_total_amount = """
-        SELECT total_amount
-        FROM shopping_session
-        WHERE customer_id_fk = (SELECT customer_id_fk FROM `order` WHERE id = :order_id)
-    """
-    total_amount = db_session.execute(text(query_total_amount), {'order_id': order_id}).scalar()
-
-    # Insert into order_payment with total_amount as payment_value
-    query_insert_order_payment = """
-        INSERT INTO order_payment (order_id_fk, payment_type_id_fk, payment_value)
-        VALUES (:order_id, :payment_type_id, :total_amount)
-    """
-    execute_timed_query(db_session, query_insert_order_payment, {'order_id': order_id, 'payment_type_id': payment_type_id, 'total_amount': total_amount})
-    
-    # Update order status and purchase date
-    query_update_order_status = """
-        UPDATE `order`
-        SET order_status = 'paid', purchased_at = :purchased_at
-        WHERE id = :order_id
-    """
-    db_session.execute(text(query_update_order_status), {'order_id': order_id, 'purchased_at': datetime.now()})
-    
-    # Insert rows into order_item for each product in the cart
     shopping_session_id = session.get('shopping_session_id')
-    query_cart_items = """
-        SELECT product_id_fk, quantity FROM cart_item WHERE session_id_fk = :session_id
-    """
-    cart_items = db_session.execute(text(query_cart_items), {'session_id': shopping_session_id}).fetchall()
+    total_amount = mongo_db.shopping_sessions.find_one({"_id": ObjectId(shopping_session_id)})['total_amount']
 
+    order_payment = {
+        "order_id_fk": ObjectId(order_id),
+        "payment_type_id_fk": ObjectId(payment_type_id),
+        "payment_value": total_amount
+    }
+    mongo_db.order_payments.insert_one(order_payment)
+
+    mongo_db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"order_status": "paid", "purchased_at": datetime.now()}}
+    )
+
+    cart_items = list(mongo_db.cart_items.find({"session_id_fk": ObjectId(shopping_session_id)}))
     for item in cart_items:
-        query_insert_order_item = """
-            INSERT INTO order_item (order_id_fk, product_id_fk, quantity)
-            VALUES (:order_id, :product_id, :quantity)
-        """
-        db_session.execute(text(query_insert_order_item), {'order_id': order_id, 'product_id': item.product_id_fk, 'quantity': item.quantity})
-    
-    # Remove items from cart
-    query_delete_cart_items = """
-        DELETE FROM cart_item 
-        WHERE session_id_fk = :session_id
-    """
-    db_session.execute(text(query_delete_cart_items), {'session_id': shopping_session_id})
-    
-    # Update the total amount in the shopping session
-    query_update_shopping_session = """
-        UPDATE shopping_session 
-        SET total_amount = 0 
-        WHERE id = :session_id
-    """
-    db_session.execute(text(query_update_shopping_session), {'session_id': shopping_session_id})
+        order_item = {
+            "order_id_fk": ObjectId(order_id),
+            "product_id_fk": item["product_id_fk"],
+            "quantity": item["quantity"]
+        }
+        mongo_db.order_items.insert_one(order_item)
 
-    # Commit the transaction
-    db_session.commit()
+    mongo_db.cart_items.delete_many({"session_id_fk": ObjectId(shopping_session_id)})
+    mongo_db.shopping_sessions.update_one(
+        {"_id": ObjectId(shopping_session_id)},
+        {"$set": {"total_amount": 0}}
+    )
 
     return redirect(url_for('shop'))
-
-
 
 @app.route('/view_orders')
 @login_required
@@ -886,96 +726,104 @@ def view_orders():
         return redirect(url_for('login'))
 
     customer_id = session['customer_id']
-    
-    # Query to get all orders for the customer with their payment value and review status
-    orders = db_session.execute(text("""
-        SELECT o.id, o.purchased_at, o.order_status, op.payment_value,
-               CASE WHEN orv.id IS NOT NULL THEN 1 ELSE 0 END AS has_review,
-               orv.score, orv.title, orv.content
-        FROM `order` o
-        JOIN order_payment op ON o.id = op.order_id_fk
-        LEFT JOIN order_review orv ON o.id = orv.order_id_fk
-        WHERE o.customer_id_fk = :customer_id
-    """), {'customer_id': customer_id}).fetchall()
+
+    orders = list(mongo_db.orders.aggregate([
+        {"$match": {"customer_id_fk": customer_id}},
+        {"$lookup": {
+            "from": "order_payments",
+            "localField": "_id",
+            "foreignField": "order_id_fk",
+            "as": "payments"
+        }},
+        {"$unwind": "$payments"},
+        {"$lookup": {
+            "from": "order_reviews",
+            "localField": "_id",
+            "foreignField": "order_id_fk",
+            "as": "reviews"
+        }},
+        {"$unwind": {
+            "path": "$reviews",
+            "preserveNullAndEmptyArrays": True
+        }},
+        {"$project": {
+            "id": 1,
+            "purchased_at": 1,
+            "order_status": 1,
+            "payment_value": "$payments.payment_value",
+            "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]},
+            "score": "$reviews.score",
+            "title": "$reviews.title",
+            "content": "$reviews.content"
+        }}
+    ]))
 
     return render_template('orders.html', orders=orders, order_has_review=order_has_review)
 
-@app.route('/view_order_detail/<int:order_id>')
+@app.route('/view_order_detail/<order_id>')
 @login_required
 def view_order_detail(order_id):
-    # Fetch order details from the database based on order_id
-    order_query = """
-        SELECT o.*, op.payment_value
-        FROM `order` o
-        JOIN order_payment op ON o.id = op.order_id_fk
-        WHERE o.id = :order_id
-    """
-    order = fetch_one(db_session, order_query, {'order_id': order_id})
+    order = mongo_db.orders.find_one({"_id": ObjectId(order_id)})
 
-    # Fetch order items for the selected order
-    order_items_query = """
-        SELECT p.name as product_name, p.price, oi.quantity, (p.price * oi.quantity) as total_price
-        FROM order_item oi
-        JOIN product p ON oi.product_id_fk = p.id
-        WHERE oi.order_id_fk = :order_id
-    """
-    order_items = fetch_all(db_session, order_items_query, {'order_id': order_id})
+    order_items = list(mongo_db.order_items.aggregate([
+        {"$match": {"order_id_fk": ObjectId(order_id)}},
+        {"$lookup": {
+            "from": "products",
+            "localField": "product_id_fk",
+            "foreignField": "_id",
+            "as": "product"
+        }},
+        {"$unwind": "$product"},
+        {"$project": {
+            "product_name": "$product.name",
+            "price": "$product.price",
+            "quantity": 1,
+            "total_price": {"$multiply": ["$product.price", "$quantity"]}
+        }}
+    ]))
 
-    # Render a template to display order details
     return render_template('order_detail.html', order=order, order_items=order_items)
 
-
-@app.route('/order_reviews/<int:order_id>')
+@app.route('/order_reviews/<order_id>')
 @login_required
 def order_reviews(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
-    # Fetch reviews for the given order_id
-    order_reviews_query = """
-        SELECT * FROM order_review WHERE order_id_fk = :order_id
-    """
-    order_reviews = fetch_all(db_session, order_reviews_query, {'order_id': order_id})
-
+    order_reviews = list(mongo_db.order_reviews.find({"order_id_fk": ObjectId(order_id)}))
     return render_template('order_reviews.html', order_reviews=order_reviews)
 
-@app.route('/view_order_review_customer/<int:order_id>')
+@app.route('/view_order_review_customer/<order_id>')
 @login_required
 def view_order_review(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
-    # Fetch the review for the given order_id
-    order_review_query = """
-        SELECT * FROM order_review WHERE order_id_fk = :order_id
-    """
-    order_review = fetch_one(db_session, order_review_query, {'order_id': order_id})
-
+    order_review = mongo_db.order_reviews.find_one({"order_id_fk": ObjectId(order_id)})
     return render_template('view_order_review_customer.html', order_review=order_review)
 
-@app.route('/write_order_review/<int:order_id>', methods=['GET', 'POST'])
+@app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
 @login_required
 def write_order_review(order_id):
     if request.method == 'POST':
-        # Handle form submission to write a review
         score = request.form['score']
         title = request.form['title']
         content = request.form['content']
         created_at = datetime.now()
 
-        db_session.execute(text("""
-            INSERT INTO order_review (order_id_fk, score, title, content, created_at)
-            VALUES (:order_id, :score, :title, :content, :created_at)
-        """), {'order_id': order_id, 'score': score, 'title': title, 'content': content, 'created_at': created_at})
-
-        db_session.commit()
+        order_review = {
+            "order_id_fk": ObjectId(order_id),
+            "score": score,
+            "title": title,
+            "content": content,
+            "created_at": created_at
+        }
+        mongo_db.order_reviews.insert_one(order_review)
 
         return redirect(url_for('view_orders'))
-
     else:
-        # Render the form to write a review
         return render_template('write_order_review.html', order_id=order_id)
-    
+
 @app.route('/sales_report')
 @login_required
 @query_timer
@@ -985,28 +833,22 @@ def sales_report():
 
     seller_id = session['seller_id']
 
-    query = """
-    SELECT
-        p.id AS product_id,
-        p.name AS product_name,
-        DATE_FORMAT(o.purchased_at, '%Y-%m') AS sale_month,
-        SUM(oi.quantity) AS total_quantity_sold,
-        SUM(oi.quantity * p.price) AS total_revenue
-    FROM
-        `order` o
-    JOIN
-        order_item oi ON o.id = oi.order_id_fk
-    JOIN
-        product p ON oi.product_id_fk = p.id
-    WHERE
-        o.order_status = 'paid' AND p.seller_id_fk = :seller_id
-    GROUP BY
-        p.id, p.name, sale_month
-    ORDER BY
-        p.id, sale_month;
-    """
+    pipeline = [
+        {"$match": {"seller_id": seller_id}},
+        {"$unwind": "$items"},
+        {"$group": {
+            "_id": {
+                "product_id": "$items.product_id",
+                "product_name": "$items.name",
+                "sale_month": {"$substr": ["$purchased_at", 0, 7]}
+            },
+            "total_quantity_sold": {"$sum": "$items.quantity"},
+            "total_revenue": {"$sum": {"$multiply": ["$items.quantity", "$items.price"]}}
+        }},
+        {"$sort": {"_id.product_id": 1, "_id.sale_month": 1}}
+    ]
 
-    sales_report = db_session.execute(text(query), {'seller_id': seller_id}).fetchall()
+    sales_report = list(mongo_db.orders.aggregate(pipeline))
     return render_template('sales_report.html', sales_report=sales_report)
 
 @app.route('/product_reviews')
@@ -1018,30 +860,41 @@ def product_reviews():
 
     seller_id = session['seller_id']
 
-    query = """
-    SELECT 
-        p.id AS product_id,
-        p.name AS product_name,
-        COUNT(orv.id) AS review_count,
-        AVG(orv.score) AS average_score
-    FROM 
-        product p
-    JOIN 
-        order_item oi ON p.id = oi.product_id_fk
-    JOIN 
-        `order` o ON oi.order_id_fk = o.id
-    JOIN 
-        order_review orv ON o.id = orv.order_id_fk
-    WHERE 
-        p.seller_id_fk = :seller_id
-    GROUP BY 
-        p.id, p.name
-    ORDER BY 
-        average_score DESC, review_count DESC;
-    """
+    pipeline = [
+        {"$match": {"seller_id": seller_id}},
+        {"$unwind": "$items"},
+        {"$lookup": {
+            "from": "order_reviews",
+            "localField": "order_id",
+            "foreignField": "order_id_fk",
+            "as": "reviews"
+        }},
+        {"$unwind": {
+            "path": "$reviews",
+            "preserveNullAndEmptyArrays": True
+        }},
+        {"$group": {
+            "_id": {
+                "product_id": "$items.product_id",
+                "product_name": "$items.name"
+            },
+            "review_count": {"$sum": {"$cond": [{"$gt": ["$reviews", None]}, 1, 0]}},
+            "average_score": {"$avg": "$reviews.score"}
+        }},
+        {"$sort": {"average_score": -1, "review_count": -1}}
+    ]
 
-    product_reviews = db_session.execute(text(query), {'seller_id': seller_id}).fetchall()
+    product_reviews = list(mongo_db.orders.aggregate(pipeline))
     return render_template('product_reviews.html', product_reviews=product_reviews)
 
+def signal_handler(signal, frame):
+    print('Received shutdown signal. Cleaning up...')
+    # Perform necessary cleanup here
+    os._exit(0)
+
 if __name__ == '__main__':
+    if is_running_from_reloader():
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
     app.run(debug=True)
