@@ -84,6 +84,10 @@ def query_timer(func):
         return result
     return wrapper
 
+def update_total_amount(session_id):
+    cart_items = list(mongo_db.cart_items.find({"session_id_fk": session_id}))
+    total_amount = sum(item['quantity'] * mongo_db.products.find_one({"_id": item['product_id_fk']})['price'] for item in cart_items)
+    mongo_db.shopping_sessions.update_one({"_id": session_id}, {"$set": {"total_amount": total_amount}})
 
 def login_required(f):
     @wraps(f)
