@@ -86,7 +86,21 @@ def query_timer(func):
 
 def update_total_amount(session_id):
     cart_items = list(mongo_db.cart_items.find({"session_id_fk": session_id}))
-    total_amount = sum(item['quantity'] * mongo_db.products.find_one({"_id": item['product_id_fk']})['price'] for item in cart_items)
+    total_amount = 0
+    for item in cart_items:
+        product = mongo_db.products.find_one({"_id": item['product_id_fk']})
+        try:
+            quantity = int(item['quantity'])
+            price = float(product['price'])
+            print(f"Item quantity: {quantity}, Item price: {price}")
+            total_amount += quantity * price
+        except ValueError as e:
+            print(f"ValueError: {e}")
+            continue
+        except TypeError as e:
+            print(f"TypeError: {e}")
+            continue
+    print(f"Total amount: {total_amount}")
     mongo_db.shopping_sessions.update_one({"_id": session_id}, {"$set": {"total_amount": total_amount}})
 
 def login_required(f):
@@ -498,12 +512,27 @@ def add_to_cart(product_id):
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    quantity = int(request.form.get('quantity', 1))
+    quantity = request.form.get('quantity', 1)
+    try:
+        quantity = int(quantity)
+        print(f"Quantity to add: {quantity}")
+    except ValueError:
+        print(f"Invalid quantity value: {quantity}")
+        return "Invalid quantity value", 400
 
     cart_item = mongo_db.cart_items.find_one({"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)})
 
     if cart_item:
-        new_quantity = cart_item['quantity'] + quantity
+        current_quantity = cart_item['quantity']
+        try:
+            current_quantity = int(current_quantity)
+            print(f"Current quantity in cart: {current_quantity}")
+        except ValueError:
+            print(f"Invalid current quantity value: {current_quantity}")
+            return "Invalid quantity in cart item", 500
+
+        new_quantity = current_quantity + quantity
+        print(f"New quantity: {new_quantity}")
         mongo_db.cart_items.update_one(
             {"_id": cart_item["_id"]},
             {"$set": {"quantity": new_quantity}}
@@ -520,6 +549,7 @@ def add_to_cart(product_id):
 
     return redirect(url_for('view_cart'))
 
+
 @app.route('/update_cart/<product_id>', methods=['POST'])
 @login_required
 def update_cart(product_id):
@@ -530,7 +560,13 @@ def update_cart(product_id):
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    quantity = int(request.form.get('quantity', 1))
+    quantity = request.form.get('quantity', 1)
+    try:
+        quantity = int(quantity)
+        print(f"Updated quantity: {quantity}")
+    except ValueError:
+        print(f"Invalid quantity value: {quantity}")
+        return "Invalid quantity value", 400
 
     if quantity < 1:
         quantity = 1
@@ -585,9 +621,9 @@ def view_cart():
         {"$project": {
             "product_id": "$product._id",
             "name": "$product.name",
-            "price": "$product.price",
-            "quantity": 1,
-            "total_price": {"$multiply": ["$product.price", "$quantity"]}
+            "price": {"$toDouble": "$product.price"},  # Ensure price is a double
+            "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
+            "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
         }}
     ]))
 
