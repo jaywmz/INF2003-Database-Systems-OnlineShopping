@@ -691,9 +691,9 @@ def checkout():
             {"$project": {
                 "product_id": "$product._id",
                 "name": "$product.name",
-                "price": "$product.price",
-                "quantity": 1,
-                "total_price": {"$multiply": ["$product.price", "$quantity"]}
+                "price": {"$toDouble": "$product.price"},  # Ensure price is a double
+                "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
+                "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
             }}
         ]))
 
@@ -728,16 +728,39 @@ def process_payment(order_id):
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
-    payment_type_id = request.form['payment_type_id']
+    payment_type_id = request.form.get('payment_type_id')
+    total_amount = request.form.get('total_amount')
+
+    print(f"Received payment_type_id: {payment_type_id}")  # Debug statement
+    print(f"Received total_amount: {total_amount}")  # Debug statement
+
+    # Ensure payment_type_id is a valid ObjectId
+    if not payment_type_id or not ObjectId.is_valid(payment_type_id):
+        flash("Invalid payment type ID", "error")
+        print("Invalid payment type ID")  # Debug statement
+        return redirect(url_for('payment', order_id=order_id))
 
     shopping_session_id = session.get('shopping_session_id')
-    total_amount = mongo_db.shopping_sessions.find_one({"_id": ObjectId(shopping_session_id)})['total_amount']
+    if not shopping_session_id:
+        flash("Shopping session not found", "error")
+        return redirect(url_for('shop'))
+
+    # Ensure total_amount is a valid float
+    try:
+        total_amount = float(total_amount)
+    except ValueError:
+        flash("Invalid total amount", "error")
+        print("Invalid total amount")  # Debug statement
+        return redirect(url_for('payment', order_id=order_id))
 
     order_payment = {
         "order_id_fk": ObjectId(order_id),
         "payment_type_id_fk": ObjectId(payment_type_id),
         "payment_value": total_amount
     }
+
+    print(f"Order payment details: {order_payment}")  # Debug statement
+
     mongo_db.order_payments.insert_one(order_payment)
 
     mongo_db.orders.update_one(
@@ -749,7 +772,7 @@ def process_payment(order_id):
     for item in cart_items:
         order_item = {
             "order_id_fk": ObjectId(order_id),
-            "product_id_fk": item["product_id_fk"],
+            "product_id_fk": ObjectId(item["product_id_fk"]),
             "quantity": item["quantity"]
         }
         mongo_db.order_items.insert_one(order_item)
@@ -760,6 +783,8 @@ def process_payment(order_id):
         {"$set": {"total_amount": 0}}
     )
 
+    print("Payment processed successfully")  # Debug statement
+
     return redirect(url_for('shop'))
 
 @app.route('/view_orders')
@@ -768,40 +793,51 @@ def view_orders():
     if 'customer_id' not in session or session.get('role') != 'customer':
         return redirect(url_for('login'))
 
-    customer_id = session['customer_id']
+    customer_id = session.get('customer_id')
 
-    orders = list(mongo_db.orders.aggregate([
-        {"$match": {"customer_id_fk": customer_id}},
-        {"$lookup": {
-            "from": "order_payments",
-            "localField": "_id",
-            "foreignField": "order_id_fk",
-            "as": "payments"
-        }},
-        {"$unwind": "$payments"},
-        {"$lookup": {
-            "from": "order_reviews",
-            "localField": "_id",
-            "foreignField": "order_id_fk",
-            "as": "reviews"
-        }},
-        {"$unwind": {
-            "path": "$reviews",
-            "preserveNullAndEmptyArrays": True
-        }},
-        {"$project": {
-            "id": 1,
-            "purchased_at": 1,
-            "order_status": 1,
-            "payment_value": "$payments.payment_value",
-            "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]},
-            "score": "$reviews.score",
-            "title": "$reviews.title",
-            "content": "$reviews.content"
-        }}
-    ]))
+    if not customer_id:
+        flash('Customer ID is missing', 'error')
+        return redirect(url_for('shop'))
 
-    return render_template('orders.html', orders=orders, order_has_review=order_has_review)
+    try:
+        orders = list(mongo_db.orders.aggregate([
+            {"$match": {"customer_id_fk": customer_id}},
+            {"$lookup": {
+                "from": "order_payments",
+                "localField": "_id",
+                "foreignField": "order_id_fk",
+                "as": "payments"
+            }},
+            {"$unwind": {
+                "path": "$payments",
+                "preserveNullAndEmptyArrays": True
+            }},
+            {"$lookup": {
+                "from": "order_reviews",
+                "localField": "_id",
+                "foreignField": "order_id_fk",
+                "as": "reviews"
+            }},
+            {"$unwind": {
+                "path": "$reviews",
+                "preserveNullAndEmptyArrays": True
+            }},
+            {"$project": {
+                "id": "$_id",
+                "purchased_at": 1,
+                "order_status": 1,
+                "payment_value": {"$ifNull": ["$payments.payment_value", 0]},
+                "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]},
+                "score": {"$ifNull": ["$reviews.score", 0]},
+                "title": {"$ifNull": ["$reviews.title", ""]},
+                "content": {"$ifNull": ["$reviews.content", ""]}
+            }}
+        ]))
+
+        return render_template('orders.html', orders=orders, order_has_review=order_has_review)
+    except Exception as e:
+        print(f"Error in view_orders: {e}")
+        return f"An error occurred: {str(e)}"
 
 @app.route('/view_order_detail/<order_id>')
 @login_required
@@ -819,9 +855,9 @@ def view_order_detail(order_id):
         {"$unwind": "$product"},
         {"$project": {
             "product_name": "$product.name",
-            "price": "$product.price",
-            "quantity": 1,
-            "total_price": {"$multiply": ["$product.price", "$quantity"]}
+            "price": {"$toDouble": "$product.price"},  # Ensure price is a double
+            "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
+            "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
         }}
     ]))
 
@@ -856,7 +892,7 @@ def write_order_review(order_id):
 
         order_review = {
             "order_id_fk": ObjectId(order_id),
-            "score": score,
+            "score": {"$toDouble": score},  # Ensure score is a double
             "title": title,
             "content": content,
             "created_at": created_at
@@ -885,8 +921,8 @@ def sales_report():
                 "product_name": "$items.name",
                 "sale_month": {"$substr": ["$purchased_at", 0, 7]}
             },
-            "total_quantity_sold": {"$sum": "$items.quantity"},
-            "total_revenue": {"$sum": {"$multiply": ["$items.quantity", "$items.price"]}}
+            "total_quantity_sold": {"$sum": {"$toInt": "$items.quantity"}},  # Ensure quantity is an integer
+            "total_revenue": {"$sum": {"$multiply": [{"$toInt": "$items.quantity"}, {"$toDouble": "$items.price"}]}}  # Ensure multiplication is between numeric types
         }},
         {"$sort": {"_id.product_id": 1, "_id.sale_month": 1}}
     ]
@@ -922,7 +958,7 @@ def product_reviews():
                 "product_name": "$items.name"
             },
             "review_count": {"$sum": {"$cond": [{"$gt": ["$reviews", None]}, 1, 0]}},
-            "average_score": {"$avg": "$reviews.score"}
+            "average_score": {"$avg": {"$toDouble": "$reviews.score"}}  # Ensure score is a double
         }},
         {"$sort": {"average_score": -1, "review_count": -1}}
     ]
