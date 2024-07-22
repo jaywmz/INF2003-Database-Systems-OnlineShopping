@@ -72,16 +72,16 @@
                         <h5>{{ product.name }}</h5>
                         <h6 class="text-muted">{{ product.username }}</h6>
                     </div>
-                    <a href="{{ url_for('product', product_id=product.id) }}">
+                    <a href="{{ url_for('product', product_id=product._id) }}">
                         <img src="data:image/jpeg;base64,{{ product.image_link }}" id="fixed-size-img" class="card-img-top" alt="{{ product.name }}">
                     </a>
                     <div class="card-body">
                         <p class="card-text">${{ product.price }}</p>
-                        <a href="{{ url_for('product', product_id=product.id) }}" class="btn btn-primary">View Product</a>
+                        <a href="{{ url_for('product', product_id=product._id) }}" class="btn btn-primary">View Product</a>
                     </div>
                 </div>
             </div>
         {% endfor %}
-    </ul>
+    </ul>    
 </div>
 {% endblock %}

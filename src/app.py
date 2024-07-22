@@ -432,7 +432,10 @@ def shop():
 @app.route('/product/<product_id>')
 def product(product_id):
     product = mongo_db.products.find_one({"_id": ObjectId(product_id)})
+    if not product:
+        return "Product not found", 404
     return render_template('product.html', product=product)
+
 
 @app.route('/edit_product/<product_id>', methods=['GET', 'POST'])
 @login_required
