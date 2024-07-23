@@ -15,6 +15,7 @@ from bson import ObjectId
 import signal
 import os
 from werkzeug.serving import is_running_from_reloader
+from math import ceil
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -270,29 +271,26 @@ def add_product():
         height = request.form['height']
         width = request.form['width']
         price = request.form['price']
+        image_url = request.form['image_url']  # Assuming you're now submitting an image URL
 
-        image_file = request.files['image_file']
-        if image_file:
-            image_data = base64.b64encode(image_file.read()).decode('utf-8')
-
-            try:
-                product = {
-                    "name": name,
-                    "description": description,
-                    "category": category,
-                    "weight": weight,
-                    "length": length,
-                    "height": height,
-                    "width": width,
-                    "price": price,
-                    "image_link": image_data,
-                    "seller_id": seller_id
-                }
-                mongo_db.products.insert_one(product)
-                return redirect(url_for('dashboard'))
-            
-            except Exception as e:
-                return f"An error occurred: {str(e)}"
+        try:
+            product = {
+                "name": name,
+                "description": description,
+                "category": category,
+                "weight": weight,
+                "length": length,
+                "height": height,
+                "width": width,
+                "price": price,
+                "image_link": image_url,
+                "seller_id": seller_id
+            }
+            mongo_db.products.insert_one(product)
+            return redirect(url_for('dashboard'))
+        
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
 
     return render_template('add_product.html')
 
@@ -418,6 +416,10 @@ def shop():
     price_max = request.form.get('price_max', '')
     sort_by = request.form.get('sort_by', '')
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+
     query = {"name": {"$regex": search, "$options": "i"}}
     if category:
         query["category"] = category
@@ -437,11 +439,19 @@ def shop():
         elif sort_by == 'name_desc':
             sort_criteria = [("name", -1)]
 
-    products = list(mongo_db.products.find(query, sort=sort_criteria))
+    total_products = mongo_db.products.count_documents(query)
+    total_pages = ceil(total_products / per_page)
+
+    products = list(mongo_db.products.find(query, sort=sort_criteria).skip((page-1)*per_page).limit(per_page))
 
     categories = mongo_db.products.distinct("category")
 
-    return render_template('shop.html', products=products, categories=categories, user_role=user_role)
+    return render_template('shop.html', 
+                           products=products, 
+                           categories=categories, 
+                           user_role=user_role,
+                           page=page,
+                           total_pages=total_pages)
 
 @app.route('/product/<product_id>')
 def product(product_id):
