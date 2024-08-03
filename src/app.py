@@ -303,7 +303,9 @@ def add_product():
         except Exception as e:
             return f"An error occurred: {str(e)}"
 
-    return render_template('add_product.html')
+    categories = mongo_db.products.distinct("category")
+
+    return render_template('add_product.html', categories=categories)
 
 @app.route('/view_sales')
 @role_required(role='seller')
@@ -492,7 +494,8 @@ def edit_product(product_id):
         return redirect(url_for('dashboard'))
     
     product = mongo_db.products.find_one({"_id": ObjectId(product_id), "seller_id": seller_id})
-    return render_template('edit_product.html', product=product)
+    categories = mongo_db.products.distinct("category")
+    return render_template('edit_product.html', product=product, categories=categories)
 
 @app.route('/order/<order_id>/payment')
 @role_required(role='customer')

@@ -129,7 +129,7 @@ document.getElementById('current-page').addEventListener('keypress', function(e)
             <select class="form-select" name="category">
                 <option value="" selected>Categories</option>
                 {% for category in categories %}
-                    <option value="{{ category.id }}" {% if request.form.category == category.id %} selected {% endif %}>{{ category.name }}</option>
+                    <option value="{{ category }}" {% if request.form.category == category %} selected {% endif %}>{{ category }}</option>
                 {% endfor %}
             </select>
         </div>

@@ -16,9 +16,9 @@
             <div class="form-group">
                 <label for="category">Category:</label>
                 <select id="category" name="category" required>
-                    <option value="1">Electronics</option>
-                    <option value="2">Books</option>
-                    <option value="3">Clothing</option>
+                    {% for category in categories %}
+                        <option value="{{ category }}" {% if request.form.category == category %} selected {% endif %}>{{ category }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="form-group">
