@@ -310,15 +310,14 @@ def add_product():
 @app.route('/view_sales')
 @role_required(role='seller')
 def view_sales():
-    seller_id = session['seller_id']
+    seller_id = str(session['seller_id'])  # Ensure seller_id is a string
 
     try:
         pipeline = [
-            {"$unwind": "$order_items"},
             {"$match": {"order_items.seller_id": seller_id}},
+            {"$unwind": "$order_items"},
             {"$group": {
-                "_id": {"product_id": "$order_items.product_id"},
-                "product_name": {"$first": "$order_items.name"},
+                "_id": {"product_id": "$order_items.product_id", "name": "$order_items.name"},
                 "sales_count": {"$sum": "$order_items.quantity"}
             }},
             {"$sort": {"_id.product_id": 1}}
