@@ -104,20 +104,28 @@ def update_total_amount(session_id):
     print(f"Total amount: {total_amount}")
     mongo_db.shopping_sessions.update_one({"_id": session_id}, {"$set": {"total_amount": total_amount}})
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'logged_in' not in session or not session['logged_in']:
-            return redirect(url_for('login', next=request.url))
-        return f(*args, **kwargs)
-    return decorated_function
+def role_required(role=None):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'seller_id' not in session and 'customer_id' not in session:
+                return redirect(url_for('login'))
+
+            if role == 'seller' and ('seller_id' not in session or session.get('role') != 'seller'):
+                return redirect(url_for('login', next=request.url))
+            elif role == 'customer' and ('customer_id' not in session or session.get('role') != 'customer'):
+                return redirect(url_for('login', next=request.url))
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 def order_has_review(order_id):
     review_count = mongo_db.order_reviews.count_documents({"order_id": order_id})
     return review_count > 0
 
 @app.route('/')
-@login_required
+@role_required()
 def index():
     return render_template('index.html')
 
@@ -239,7 +247,7 @@ def register():
     return render_template('register.html', geolocation_data=geolocation_data)
 
 @app.route('/dashboard')
-@login_required
+@role_required(role='seller')
 def dashboard():
     if 'seller_id' not in session or session.get('role') != 'seller':
         return redirect(url_for('login'))
@@ -255,10 +263,8 @@ def dashboard():
     
 
 @app.route('/add_product', methods=['GET', 'POST'])
-@login_required
+@role_required(role='seller')
 def add_product():
-    if 'seller_id' not in session:
-        return redirect(url_for('login'))
     
     seller_id = session['seller_id']
     
@@ -295,11 +301,8 @@ def add_product():
     return render_template('add_product.html')
 
 @app.route('/view_sales')
-@login_required
+@role_required(role='seller')
 def view_sales():
-    if 'seller_id' not in session or session.get('role') != 'seller':
-        return redirect(url_for('login'))
-
     seller_id = session['seller_id']
 
     try:
@@ -320,10 +323,8 @@ def view_sales():
         return f"An error occurred: {str(e)}"
 
 @app.route('/view_product_sales/<int:product_id>')
-@login_required
+@role_required(role='seller')
 def view_product_sales(product_id):
-    if 'seller_id' not in session or session.get('role') != 'seller':
-        return redirect(url_for('login'))
 
     seller_id = session['seller_id']
 
@@ -365,11 +366,9 @@ def view_product_sales(product_id):
         return f"An error occurred: {str(e)}"
 
 @app.route('/view_order_review_seller/<int:order_id>')
-@login_required
+@role_required(role='seller')
 def view_order_review_seller(order_id):
-    if 'seller_id' not in session or session.get('role') != 'seller':
-        return redirect(url_for('login'))
-
+    
     try:
         order_review = mongo_db.order_reviews.find_one({"order_id": order_id})
         order_item = mongo_db.orders.find_one({"items.order_id": order_id}, {"items.$": 1})
@@ -380,10 +379,8 @@ def view_order_review_seller(order_id):
         return f"An error occurred: {str(e)}"
 
 @app.route('/shop', methods=['GET', 'POST'])
-@login_required
+@role_required()
 def shop():
-    if 'role' not in session:
-        return redirect(url_for('login'))
 
     user_role = session.get('role')
 
@@ -462,11 +459,9 @@ def product(product_id):
 
 
 @app.route('/edit_product/<product_id>', methods=['GET', 'POST'])
-@login_required
+@role_required(role='seller')
 def edit_product(product_id):
-    if 'seller_id' not in session:
-        return redirect(url_for('login'))
-    
+
     seller_id = session['seller_id']
     
     if request.method == 'POST':
@@ -495,29 +490,21 @@ def edit_product(product_id):
     return render_template('edit_product.html', product=product)
 
 @app.route('/order/<order_id>/payment')
-@login_required
-def order_payment(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-    
+@role_required(role='customer')
+def order_payment(order_id):    
     order_payment = mongo_db.order_payments.find({"order_id_fk": ObjectId(order_id)}).all()
     return render_template('order_payment.html', order_payment=order_payment)
 
 @app.route('/order/<order_id>/review')
-@login_required
+@role_required(role='customer')
 def order_review(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-    
     order_review = mongo_db.order_reviews.find({"order_id_fk": ObjectId(order_id)}).all()
     return render_template('order_review.html', order_review=order_review)
 
 @app.route('/add_to_cart/<product_id>', methods=['POST'])
-@login_required
+@role_required(role='customer')
 def add_to_cart(product_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-    
+
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -561,11 +548,8 @@ def add_to_cart(product_id):
 
 
 @app.route('/update_cart/<product_id>', methods=['POST'])
-@login_required
+@role_required(role='customer')
 def update_cart(product_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -592,11 +576,8 @@ def update_cart(product_id):
     return redirect(url_for('view_cart'))
 
 @app.route('/remove_from_cart/<product_id>', methods=['POST'])
-@login_required
+@role_required(role='customer')
 def remove_from_cart(product_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -610,11 +591,8 @@ def remove_from_cart(product_id):
     return redirect(url_for('view_cart'))
 
 @app.route('/cart')
-@login_required
+@role_required(role='customer')
 def view_cart():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -654,11 +632,8 @@ def ensure_payment_types():
 ensure_payment_types()
 
 @app.route('/checkout', methods=['GET', 'POST'])
-@login_required
+@role_required(role='customer')
 def checkout():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -712,32 +687,23 @@ def checkout():
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
 
 @app.route('/process_checkout', methods=['POST'])
-@login_required
+@role_required(role='customer')
 def process_checkout():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-    
     order_id = request.form['order_id']
     total_amount = request.form['total_amount']
     return redirect(url_for('payment', order_id=order_id, total_amount=total_amount))
 
 @app.route('/payment/<order_id>', methods=['GET', 'POST'])
-@login_required
+@role_required(role='customer')
 def payment(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     total_amount = request.args.get('total_amount')
     payment_types = list(mongo_db.payment_types.find({}))
 
     return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
 
 @app.route('/process_payment/<order_id>', methods=['POST'])
-@login_required
+@role_required(role='customer')
 def process_payment(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     payment_type_id = request.form.get('payment_type_id')
     total_amount = request.form.get('total_amount')
 
@@ -798,11 +764,8 @@ def process_payment(order_id):
     return redirect(url_for('shop'))
 
 @app.route('/view_orders')
-@login_required
+@role_required(role='customer')
 def view_orders():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     customer_id = session.get('customer_id')
 
     if not customer_id:
@@ -850,7 +813,7 @@ def view_orders():
         return f"An error occurred: {str(e)}"
 
 @app.route('/view_order_detail/<order_id>')
-@login_required
+@role_required(role='customer')
 def view_order_detail(order_id):
     order = mongo_db.orders.find_one({"_id": ObjectId(order_id)})
 
@@ -874,25 +837,19 @@ def view_order_detail(order_id):
     return render_template('order_detail.html', order=order, order_items=order_items)
 
 @app.route('/order_reviews/<order_id>')
-@login_required
+@role_required(role='customer')
 def order_reviews(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     order_reviews = list(mongo_db.order_reviews.find({"order_id_fk": ObjectId(order_id)}))
     return render_template('order_reviews.html', order_reviews=order_reviews)
 
 @app.route('/view_order_review_customer/<order_id>')
-@login_required
+@role_required(role='customer')
 def view_order_review(order_id):
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
     order_review = mongo_db.order_reviews.find_one({"order_id_fk": ObjectId(order_id)})
     return render_template('view_order_review_customer.html', order_review=order_review)
 
 @app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
-@login_required
+@role_required(role='customer')
 def write_order_review(order_id):
     if request.method == 'POST':
         score = request.form['score']
@@ -914,12 +871,9 @@ def write_order_review(order_id):
         return render_template('write_order_review.html', order_id=order_id)
 
 @app.route('/sales_report')
-@login_required
+@role_required(role='seller')
 @query_timer
 def sales_report():
-    if 'seller_id' not in session or session.get('role') != 'seller':
-        return redirect(url_for('login'))
-
     seller_id = session['seller_id']
 
     pipeline = [
@@ -941,12 +895,9 @@ def sales_report():
     return render_template('sales_report.html', sales_report=sales_report)
 
 @app.route('/product_reviews')
-@login_required
+@role_required(role='seller')
 @query_timer
 def product_reviews():
-    if 'seller_id' not in session or session.get('role') != 'seller':
-        return redirect(url_for('login'))
-
     seller_id = session['seller_id']
 
     pipeline = [
