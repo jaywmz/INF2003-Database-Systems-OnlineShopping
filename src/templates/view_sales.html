@@ -21,12 +21,12 @@
             {% for sale in sales_data %}
             <tr>
                 <td>
-                    <img src="data:image/jpeg;base64,{{ sale.image_link }}" alt="{{ sale._id.name }}" class="product-image" style="width: 100px; height: auto;">
+                    <img src="data:image/jpeg;base64,{{ sale.image_link }}" alt="{{ sale.name }}" class="product-image" style="width: 100px; height: auto;">
                 </td>
-                <td>{{ sale._id.name }}</td>
+                <td>{{ sale.name }}</td>
                 <td>{{ sale.sales_count }}</td>
                 <td>${{ sale.total_revenue }}</td>
-                <td><a href="{{ url_for('view_product_sales', product_id=sale._id.product_id) }}" class="btn btn-primary">View</a></td>
+                <td><a href="{{ url_for('view_product_sales', product_id=sale._id) }}" class="btn btn-primary">View</a></td>
             </tr>
             {% endfor %}
         </tbody>

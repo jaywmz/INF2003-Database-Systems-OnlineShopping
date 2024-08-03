@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container-fluid">
     <a href="{{ url_for('view_sales') }}" class="btn btn-primary">Return to Sales Data</a>
-    <h1 class="mt-5">Viewing Sales Data for ProductID: {{ product_sales[0].product_id }}</h1>
+    <h1 class="mt-5">Viewing Sales Data for ProductID: {{ product_id }}</h1>
     {% if has_sales %}
     <table class="table">
         <thead>
