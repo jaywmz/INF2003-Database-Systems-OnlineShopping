@@ -314,11 +314,12 @@ def view_sales():
 
     try:
         pipeline = [
-            {"$match": {"seller_id": seller_id}},
-            {"$unwind": "$items"},
+            {"$unwind": "$order_items"},
+            {"$match": {"order_items.seller_id": seller_id}},
             {"$group": {
-                "_id": {"product_id": "$items.product_id", "name": "$items.name"},
-                "sales_count": {"$sum": "$items.quantity"}
+                "_id": {"product_id": "$order_items.product_id"},
+                "product_name": {"$first": "$order_items.name"},
+                "sales_count": {"$sum": "$order_items.quantity"}
             }},
             {"$sort": {"_id.product_id": 1}}
         ]
@@ -328,6 +329,7 @@ def view_sales():
     
     except Exception as e:
         return f"An error occurred: {str(e)}"
+
 
 @app.route('/view_product_sales/<int:product_id>')
 @role_required(role='seller')
@@ -700,7 +702,8 @@ def checkout():
                 "name": "$product.name",
                 "price": {"$toDouble": "$product.price"},  # Ensure price is a double
                 "quantity": {"$toInt": "$products.quantity"},  # Ensure quantity is an integer
-                "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$products.quantity"}]}  # Ensure multiplication is between numeric types
+                "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$products.quantity"}]},  # Ensure multiplication is between numeric types
+                "seller_id": "$product.seller_id"  # Include seller_id
             }}
         ]))
 
@@ -708,7 +711,10 @@ def checkout():
         for item in cart_items:
             order_items.append({
                 "product_id": item["product_id"],
-                "quantity": item["quantity"]
+                "quantity": item["quantity"],
+                "name": item["name"],  # Include product name
+                "price": item["price"],  # Include product price
+                "seller_id": item["seller_id"]  # Include seller_id
             })
 
         purchased_at = datetime.now()
@@ -728,6 +734,7 @@ def checkout():
         order_id = result.inserted_id
 
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
+
 
 @app.route('/process_checkout', methods=['POST'])
 @role_required(role='customer')
@@ -893,22 +900,24 @@ def sales_report():
     seller_id = session['seller_id']
 
     pipeline = [
-        {"$match": {"seller_id": seller_id}},
-        {"$unwind": "$items"},
+        {"$unwind": "$order_items"},
+        {"$match": {"order_items.seller_id": seller_id}},
         {"$group": {
             "_id": {
-                "product_id": "$items.product_id",
-                "product_name": "$items.name",
+                "product_id": "$order_items.product_id",
+                "product_name": "$order_items.name",
                 "sale_month": {"$substr": ["$purchased_at", 0, 7]}
             },
-            "total_quantity_sold": {"$sum": {"$toInt": "$items.quantity"}},  # Ensure quantity is an integer
-            "total_revenue": {"$sum": {"$multiply": [{"$toInt": "$items.quantity"}, {"$toDouble": "$items.price"}]}}  # Ensure multiplication is between numeric types
+            "total_quantity_sold": {"$sum": "$order_items.quantity"},
+            "total_revenue": {"$sum": {"$multiply": ["$order_items.quantity", "$order_items.price"]}}
         }},
         {"$sort": {"_id.product_id": 1, "_id.sale_month": 1}}
     ]
 
     sales_report = list(mongo_db.orders.aggregate(pipeline))
+
     return render_template('sales_report.html', sales_report=sales_report)
+
 
 @app.route('/product_reviews')
 @role_required(role='seller')
@@ -917,30 +926,29 @@ def product_reviews():
     seller_id = session['seller_id']
 
     pipeline = [
-        {"$match": {"seller_id": seller_id}},
-        {"$unwind": "$items"},
-        {"$lookup": {
-            "from": "order_reviews",
-            "localField": "order_id",
-            "foreignField": "order_id_fk",
-            "as": "reviews"
-        }},
+        {"$unwind": "$order_items"},
+        {"$match": {"order_items.seller_id": seller_id}},
         {"$unwind": {
             "path": "$reviews",
             "preserveNullAndEmptyArrays": True
         }},
         {"$group": {
             "_id": {
-                "product_id": "$items.product_id",
-                "product_name": "$items.name"
+                "product_id": "$order_items.product_id",
+                "product_name": "$order_items.name"
             },
             "review_count": {"$sum": {"$cond": [{"$gt": ["$reviews", None]}, 1, 0]}},
-            "average_score": {"$avg": {"$toDouble": "$reviews.score"}}  # Ensure score is a double
+            "average_score": {"$avg": "$reviews.score"}  # Ensure score is a double
         }},
         {"$sort": {"average_score": -1, "review_count": -1}}
     ]
 
     product_reviews = list(mongo_db.orders.aggregate(pipeline))
+
+    # Convert ObjectId to string for template rendering
+    for review in product_reviews:
+        review['_id']['product_id'] = str(review['_id']['product_id'])
+
     return render_template('product_reviews.html', product_reviews=product_reviews)
 
 def signal_handler(signal, frame):

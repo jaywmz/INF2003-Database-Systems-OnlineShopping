@@ -18,11 +18,11 @@
         <tbody>
             {% for record in sales_report %}
                 <tr>
-                    <td>{{ record.product_id }}</td>
-                    <td>{{ record.product_name }}</td>
-                    <td>{{ record.sale_month }}</td>
+                    <td>{{ record._id.product_id }}</td>
+                    <td>{{ record._id.product_name }}</td>
+                    <td>{{ record._id.sale_month }}</td>
                     <td>{{ record.total_quantity_sold }}</td>
-                    <td>${{ record.total_revenue }}</td>
+                    <td>${{ record.total_revenue | round(2) }}</td>
                 </tr>
             {% endfor %}
         </tbody>

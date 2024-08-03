@@ -15,8 +15,8 @@
         <tbody>
             {% for review in product_reviews %}
             <tr>
-                <td class="align-middle">{{ review.product_id }}</td>
-                <td class="align-middle">{{ review.product_name }}</td>
+                <td class="align-middle">{{ review._id.product_id }}</td>
+                <td class="align-middle">{{ review._id.product_name }}</td>
                 <td class="align-middle">{{ review.review_count }}</td>
                 <td class="align-middle">{{ review.average_score | round(2) }}</td>
             </tr>
