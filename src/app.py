@@ -729,7 +729,6 @@ def checkout():
 
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
 
-
 @app.route('/process_checkout', methods=['POST'])
 @role_required(role='customer')
 def process_checkout():
@@ -809,21 +808,11 @@ def view_orders():
     try:
         orders = list(mongo_db.orders.aggregate([
             {"$match": {"customer_id_fk": customer_id}},
-            {"$lookup": {
-                "from": "order_payments",
-                "localField": "_id",
-                "foreignField": "order_id_fk",
-                "as": "payments"
-            }},
-            {"$unwind": {
-                "path": "$payments",
-                "preserveNullAndEmptyArrays": True
-            }},
             {"$project": {
                 "id": "$_id",
                 "purchased_at": 1,
                 "order_status": 1,
-                "payment_value": {"$ifNull": ["$payments.payment_value", 0]},
+                "payment_value": {"$ifNull": ["$payment.payment_value", 0]},
                 "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$reviews", []]}}, 0]}, True, False]},
                 "reviews": 1
             }}
