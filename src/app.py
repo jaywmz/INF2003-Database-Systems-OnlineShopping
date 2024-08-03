@@ -86,10 +86,14 @@ def query_timer(func):
     return wrapper
 
 def update_total_amount(session_id):
-    cart_items = list(mongo_db.cart_items.find({"session_id_fk": session_id}))
+    shopping_session = mongo_db.shopping_sessions.find_one({"_id": ObjectId(session_id)})
+    if not shopping_session:
+        print(f"Shopping session not found: {session_id}")
+        return
+
     total_amount = 0
-    for item in cart_items:
-        product = mongo_db.products.find_one({"_id": item['product_id_fk']})
+    for item in shopping_session.get('products', []):
+        product = mongo_db.products.find_one({"_id": item['product_id']})
         try:
             quantity = int(item['quantity'])
             price = float(product['price'])
@@ -101,8 +105,9 @@ def update_total_amount(session_id):
         except TypeError as e:
             print(f"TypeError: {e}")
             continue
+
     print(f"Total amount: {total_amount}")
-    mongo_db.shopping_sessions.update_one({"_id": session_id}, {"$set": {"total_amount": total_amount}})
+    mongo_db.shopping_sessions.update_one({"_id": ObjectId(session_id)}, {"$set": {"total_amount": total_amount}})
 
 def role_required(role=None):
     def decorator(f):
@@ -528,10 +533,13 @@ def add_to_cart(product_id):
         print(f"Invalid quantity value: {quantity}")
         return "Invalid quantity value", 400
 
-    cart_item = mongo_db.cart_items.find_one({"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)})
+    cart_item = mongo_db.shopping_sessions.find_one(
+        {"_id": ObjectId(shopping_session_id), "products.product_id": ObjectId(product_id)},
+        {"products.$": 1}
+    )
 
     if cart_item:
-        current_quantity = cart_item['quantity']
+        current_quantity = cart_item['products'][0]['quantity']
         try:
             current_quantity = int(current_quantity)
             print(f"Current quantity in cart: {current_quantity}")
@@ -541,17 +549,19 @@ def add_to_cart(product_id):
 
         new_quantity = current_quantity + quantity
         print(f"New quantity: {new_quantity}")
-        mongo_db.cart_items.update_one(
-            {"_id": cart_item["_id"]},
-            {"$set": {"quantity": new_quantity}}
+        mongo_db.shopping_sessions.update_one(
+            {"_id": ObjectId(shopping_session_id), "products.product_id": ObjectId(product_id)},
+            {"$set": {"products.$.quantity": new_quantity}}
         )
     else:
         cart_item = {
-            "session_id_fk": ObjectId(shopping_session_id),
-            "product_id_fk": ObjectId(product_id),
+            "product_id": ObjectId(product_id),
             "quantity": quantity
         }
-        mongo_db.cart_items.insert_one(cart_item)
+        mongo_db.shopping_sessions.update_one(
+            {"_id": ObjectId(shopping_session_id)},
+            {"$push": {"products": cart_item}}
+        )
 
     update_total_amount(ObjectId(shopping_session_id))
 
@@ -576,15 +586,16 @@ def update_cart(product_id):
     if quantity < 1:
         quantity = 1
 
-    mongo_db.cart_items.update_one(
-        {"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)},
-        {"$set": {"quantity": quantity}}
+    mongo_db.shopping_sessions.update_one(
+        {"_id": ObjectId(shopping_session_id), "products.product_id": ObjectId(product_id)},
+        {"$set": {"products.$.quantity": quantity}}
     )
 
     update_total_amount(ObjectId(shopping_session_id))
 
     flash('Cart updated successfully', 'success')
     return redirect(url_for('view_cart'))
+
 
 @app.route('/remove_from_cart/<product_id>', methods=['POST'])
 @role_required(role='customer')
@@ -593,13 +604,15 @@ def remove_from_cart(product_id):
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    mongo_db.cart_items.delete_one(
-        {"session_id_fk": ObjectId(shopping_session_id), "product_id_fk": ObjectId(product_id)}
+    mongo_db.shopping_sessions.update_one(
+        {"_id": ObjectId(shopping_session_id)},
+        {"$pull": {"products": {"product_id": ObjectId(product_id)}}}
     )
 
     update_total_amount(ObjectId(shopping_session_id))
 
     return redirect(url_for('view_cart'))
+
 
 @app.route('/cart')
 @role_required(role='customer')
@@ -608,11 +621,12 @@ def view_cart():
     if not shopping_session_id:
         return redirect(url_for('shop'))
 
-    cart_items = list(mongo_db.cart_items.aggregate([
-        {"$match": {"session_id_fk": ObjectId(shopping_session_id)}},
+    cart_items = list(mongo_db.shopping_sessions.aggregate([
+        {"$match": {"_id": ObjectId(shopping_session_id)}},
+        {"$unwind": "$products"},
         {"$lookup": {
             "from": "products",
-            "localField": "product_id_fk",
+            "localField": "products.product_id",
             "foreignField": "_id",
             "as": "product"
         }},
@@ -621,8 +635,8 @@ def view_cart():
             "product_id": "$product._id",
             "name": "$product.name",
             "price": {"$toDouble": "$product.price"},  # Ensure price is a double
-            "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
-            "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
+            "quantity": {"$toInt": "$products.quantity"},  # Ensure quantity is an integer
+            "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$products.quantity"}]}  # Ensure multiplication is between numeric types
         }}
     ]))
 
@@ -728,11 +742,12 @@ def checkout():
         order_items = []
         total_payment_value = 0
 
-        cart_items = list(mongo_db.cart_items.aggregate([
-            {"$match": {"session_id_fk": ObjectId(shopping_session_id)}},
+        cart_items = list(mongo_db.shopping_sessions.aggregate([
+            {"$match": {"_id": ObjectId(shopping_session_id)}},
+            {"$unwind": "$products"},
             {"$lookup": {
                 "from": "products",
-                "localField": "product_id_fk",
+                "localField": "products.product_id",
                 "foreignField": "_id",
                 "as": "product"
             }},
@@ -741,8 +756,8 @@ def checkout():
                 "product_id": "$product._id",
                 "name": "$product.name",
                 "price": {"$toDouble": "$product.price"},  # Ensure price is a double
-                "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
-                "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
+                "quantity": {"$toInt": "$products.quantity"},  # Ensure quantity is an integer
+                "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$products.quantity"}]}  # Ensure multiplication is between numeric types
             }}
         ]))
 
@@ -898,24 +913,24 @@ def process_payment(order_id):
         {"$set": {"order_status": "paid", "purchased_at": datetime.now(), "payment.approved_at": approved_at}}
     )
 
-    cart_items = list(mongo_db.cart_items.find({"session_id_fk": ObjectId(shopping_session_id)}))
-    for item in cart_items:
+    session_data = mongo_db.shopping_sessions.find_one({"_id": ObjectId(shopping_session_id)})
+    for item in session_data['products']:
         order_item = {
             "order_id_fk": ObjectId(order_id),
-            "product_id_fk": ObjectId(item["product_id_fk"]),
-            "quantity": item["quantity"]
+            "product_id_fk": ObjectId(item["product_id"]),
+            "quantity": int(item["quantity"])  # Ensure quantity is an integer
         }
         mongo_db.order_items.insert_one(order_item)
 
-    mongo_db.cart_items.delete_many({"session_id_fk": ObjectId(shopping_session_id)})
     mongo_db.shopping_sessions.update_one(
         {"_id": ObjectId(shopping_session_id)},
-        {"$set": {"total_amount": 0}}
+        {"$set": {"total_amount": 0, "products": []}}
     )
 
     print("Payment processed successfully")  # Debug statement
 
     return redirect(url_for('shop'))
+
 
 @app.route('/view_orders')
 @role_required(role='customer')
