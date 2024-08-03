@@ -27,8 +27,8 @@
         <label for="price">Price:</label>
         <input type="text" id="price" name="price" value="{{ product.price }}" required>
         <br>
-        <label for="image">Image:</label>
-        <input type="file" id="image" name="image">
+        <label for="image">Image URL:</label>
+        <input type="text" id="image" name="image_url" value="{{ product.image_link }}" required>
         <br>
         <button type="submit" class="edit-product-button">Save Changes</button>
     </form>

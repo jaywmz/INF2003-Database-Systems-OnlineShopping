@@ -831,35 +831,6 @@ def view_orders():
         print(f"Error in view_orders: {e}")
         return f"An error occurred: {str(e)}"
 
-<<<<<<< HEAD
-
-# change
-# @app.route('/view_order_detail/<order_id>')
-# @role_required(role='customer')
-# def view_order_detail(order_id):
-#     order = mongo_db.orders.find_one({"_id": ObjectId(order_id)})
-
-#     order_items = list(mongo_db.order_items.aggregate([
-#         {"$match": {"order_id_fk": ObjectId(order_id)}},
-#         {"$lookup": {
-#             "from": "products",
-#             "localField": "product_id_fk",
-#             "foreignField": "_id",
-#             "as": "product"
-#         }},
-#         {"$unwind": "$product"},
-#         {"$project": {
-#             "product_name": "$product.name",
-#             "price": {"$toDouble": "$product.price"},  # Ensure price is a double
-#             "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
-#             "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
-#         }}
-#     ]))
-
-#     return render_template('order_detail.html', order=order, order_items=order_items)
-
-=======
->>>>>>> 060603cc8042a164f0bcbc91481a644654aa00f5
 @app.route('/view_order_detail/<order_id>')
 @role_required(role='customer')
 def view_order_detail(order_id):
