@@ -28,7 +28,7 @@
                             <td class="align-middle">{{ order.order_status }}</td>
                             <td class="align-middle">${{ order.payment_value }}</td>
                             <td>
-                                {% if order_has_review(order.id) %}
+                                {% if order.has_review %}
                                 <a href="{{ url_for('view_order_review', order_id=order.id) }}" class="btn btn-primary">View Review</a>
                                 {% else %}
                                 <a href="{{ url_for('write_order_review', order_id=order.id) }}" class="btn btn-success">Write Review</a>

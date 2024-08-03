@@ -954,32 +954,21 @@ def view_orders():
                 "path": "$payments",
                 "preserveNullAndEmptyArrays": True
             }},
-            {"$lookup": {
-                "from": "order_reviews",
-                "localField": "_id",
-                "foreignField": "order_id_fk",
-                "as": "reviews"
-            }},
-            {"$unwind": {
-                "path": "$reviews",
-                "preserveNullAndEmptyArrays": True
-            }},
             {"$project": {
                 "id": "$_id",
                 "purchased_at": 1,
                 "order_status": 1,
                 "payment_value": {"$ifNull": ["$payments.payment_value", 0]},
-                "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]},
-                "score": {"$ifNull": ["$reviews.score", 0]},
-                "title": {"$ifNull": ["$reviews.title", ""]},
-                "content": {"$ifNull": ["$reviews.content", ""]}
+                "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$reviews", []]}}, 0]}, True, False]},
+                "reviews": 1
             }}
         ]))
 
-        return render_template('orders.html', orders=orders, order_has_review=order_has_review)
+        return render_template('orders.html', orders=orders)
     except Exception as e:
         print(f"Error in view_orders: {e}")
         return f"An error occurred: {str(e)}"
+
 
 # change
 # @app.route('/view_order_detail/<order_id>')
@@ -1037,8 +1026,12 @@ def order_reviews(order_id):
 @app.route('/view_order_review_customer/<order_id>')
 @role_required(role='customer')
 def view_order_review(order_id):
-    order_review = mongo_db.order_reviews.find_one({"order_id_fk": ObjectId(order_id)})
-    return render_template('view_order_review_customer.html', order_review=order_review)
+    order = mongo_db.orders.find_one({"_id": ObjectId(order_id)}, {"reviews": 1})
+    if not order or 'reviews' not in order:
+        return "No reviews found", 404
+
+    return render_template('view_order_review_customer.html', reviews=order['reviews'])
+
 
 @app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
 @role_required(role='customer')
@@ -1049,18 +1042,21 @@ def write_order_review(order_id):
         content = request.form['content']
         created_at = datetime.now()
 
-        order_review = {
-            "order_id_fk": ObjectId(order_id),
-            "score": {"$toDouble": score},  # Ensure score is a double
+        review = {
+            "score": float(score),  # Ensure score is a float
             "title": title,
             "content": content,
             "created_at": created_at
         }
-        mongo_db.order_reviews.insert_one(order_review)
+        mongo_db.orders.update_one(
+            {"_id": ObjectId(order_id)},
+            {"$push": {"reviews": review}}
+        )
 
         return redirect(url_for('view_orders'))
     else:
         return render_template('write_order_review.html', order_id=order_id)
+
 
 @app.route('/sales_report')
 @role_required(role='seller')
