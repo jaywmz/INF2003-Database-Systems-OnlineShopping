@@ -645,6 +645,64 @@ def ensure_payment_types():
 
 ensure_payment_types()
 
+# @app.route('/checkout', methods=['GET', 'POST'])
+# @login_required
+# def checkout():
+#     if 'customer_id' not in session or session.get('role') != 'customer':
+#         return redirect(url_for('login'))
+
+#     shopping_session_id = session.get('shopping_session_id')
+#     if not shopping_session_id:
+#         return redirect(url_for('shop'))
+
+#     if request.method == 'POST':
+#         order_id = request.form['order_id']
+#         payment_type_id = request.form['payment_type_id']
+
+#         order_payment = {
+#             "order_id_fk": ObjectId(order_id),
+#             "payment_type_id_fk": ObjectId(payment_type_id)
+#         }
+#         mongo_db.order_payments.insert_one(order_payment)
+
+#         mongo_db.orders.update_one(
+#             {"_id": ObjectId(order_id)},
+#             {"$set": {"order_status": "paid", "purchased_at": datetime.now()}}
+#         )
+
+#         return redirect(url_for('shop'))
+#     else:
+#         customer_id = session['customer_id']
+#         order = {
+#             "customer_id_fk": customer_id,
+#             "order_status": "unpaid",
+#             "items": []
+#         }
+#         mongo_db.orders.insert_one(order)
+#         order_id = order['_id']
+
+#         cart_items = list(mongo_db.cart_items.aggregate([
+#             {"$match": {"session_id_fk": ObjectId(shopping_session_id)}},
+#             {"$lookup": {
+#                 "from": "products",
+#                 "localField": "product_id_fk",
+#                 "foreignField": "_id",
+#                 "as": "product"
+#             }},
+#             {"$unwind": "$product"},
+#             {"$project": {
+#                 "product_id": "$product._id",
+#                 "name": "$product.name",
+#                 "price": {"$toDouble": "$product.price"},  # Ensure price is a double
+#                 "quantity": {"$toInt": "$quantity"},  # Ensure quantity is an integer
+#                 "total_price": {"$multiply": [{"$toDouble": "$product.price"}, {"$toInt": "$quantity"}]}  # Ensure multiplication is between numeric types
+#             }}
+#         ]))
+
+#         total_amount = sum(item['total_price'] for item in cart_items)
+
+#         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
+
 @app.route('/checkout', methods=['GET', 'POST'])
 @role_required(role='customer')
 def checkout():
@@ -670,13 +728,8 @@ def checkout():
         return redirect(url_for('shop'))
     else:
         customer_id = session['customer_id']
-        order = {
-            "customer_id_fk": customer_id,
-            "order_status": "unpaid",
-            "items": []
-        }
-        mongo_db.orders.insert_one(order)
-        order_id = order['_id']
+        order_items = []
+        total_payment_value = 0
 
         cart_items = list(mongo_db.shopping_sessions.aggregate([
             {"$match": {"_id": ObjectId(shopping_session_id)}},
@@ -698,8 +751,30 @@ def checkout():
         ]))
 
         total_amount = sum(item['total_price'] for item in cart_items)
+        for item in cart_items:
+            order_items.append({
+                "product_id": item["product_id"],
+                "quantity": item["quantity"]
+            })
+
+        purchased_at = datetime.now()
+
+        order = {
+            "customer_id_fk": customer_id,
+            "order_status": "unpaid",
+            "payment": {
+                "payment_type": "credit_card",  # This can be dynamically set based on user input
+                "payment_installments": 1,
+                "payment_value": round(total_amount, 2),
+                "purchased_at": purchased_at
+            },
+            "order_items": order_items
+        }
+        result = mongo_db.orders.insert_one(order)
+        order_id = result.inserted_id
 
         return render_template('checkout.html', cart_items=cart_items, total_amount=total_amount, order_id=order_id)
+
 
 @app.route('/process_checkout', methods=['POST'])
 @role_required(role='customer')
@@ -715,6 +790,72 @@ def payment(order_id):
     payment_types = list(mongo_db.payment_types.find({}))
 
     return render_template('payment.html', order_id=order_id, total_amount=total_amount, payment_types=payment_types)
+
+# @app.route('/process_payment/<order_id>', methods=['POST'])
+# @login_required
+# def process_payment(order_id):
+#     if 'customer_id' not in session or session.get('role') != 'customer':
+#         return redirect(url_for('login'))
+
+#     payment_type_id = request.form.get('payment_type_id')
+#     total_amount = request.form.get('total_amount')
+
+#     print(f"Received payment_type_id: {payment_type_id}")  # Debug statement
+#     print(f"Received total_amount: {total_amount}")  # Debug statement
+
+#     # Ensure payment_type_id is a valid ObjectId
+#     if not payment_type_id or not ObjectId.is_valid(payment_type_id):
+#         flash("Invalid payment type ID", "error")
+#         print("Invalid payment type ID")  # Debug statement
+#         return redirect(url_for('payment', order_id=order_id))
+
+#     shopping_session_id = session.get('shopping_session_id')
+#     if not shopping_session_id:
+#         flash("Shopping session not found", "error")
+#         return redirect(url_for('shop'))
+
+#     # Ensure total_amount is a valid float
+#     try:
+#         total_amount = float(total_amount)
+#     except ValueError:
+#         flash("Invalid total amount", "error")
+#         print("Invalid total amount")  # Debug statement
+#         return redirect(url_for('payment', order_id=order_id))
+
+#     order_payment = {
+#         "order_id_fk": ObjectId(order_id),
+#         "payment_type_id_fk": ObjectId(payment_type_id),
+#         "payment_value": total_amount
+#     }
+
+#     print(f"Order payment details: {order_payment}")  # Debug statement
+
+#     mongo_db.order_payments.insert_one(order_payment)
+
+#     mongo_db.orders.update_one(
+#         {"_id": ObjectId(order_id)},
+#         {"$set": {"order_status": "paid", "purchased_at": datetime.now()}}
+#     )
+
+#     cart_items = list(mongo_db.cart_items.find({"session_id_fk": ObjectId(shopping_session_id)}))
+#     for item in cart_items:
+#         order_item = {
+#             "order_id_fk": ObjectId(order_id),
+#             "product_id_fk": ObjectId(item["product_id_fk"]),
+#             "quantity": item["quantity"]
+#         }
+#         mongo_db.order_items.insert_one(order_item)
+
+#     mongo_db.cart_items.delete_many({"session_id_fk": ObjectId(shopping_session_id)})
+#     mongo_db.shopping_sessions.update_one(
+#         {"_id": ObjectId(shopping_session_id)},
+#         {"$set": {"total_amount": 0}}
+#     )
+
+#     print("Payment processed successfully")  # Debug statement
+
+#     return redirect(url_for('shop'))
+
 
 @app.route('/process_payment/<order_id>', methods=['POST'])
 @role_required(role='customer')
@@ -754,9 +895,11 @@ def process_payment(order_id):
 
     mongo_db.order_payments.insert_one(order_payment)
 
+    approved_at = datetime.now()
+
     mongo_db.orders.update_one(
         {"_id": ObjectId(order_id)},
-        {"$set": {"order_status": "paid", "purchased_at": datetime.now()}}
+        {"$set": {"order_status": "paid", "purchased_at": datetime.now(), "payment.approved_at": approved_at}}
     )
 
     session_data = mongo_db.shopping_sessions.find_one({"_id": ObjectId(shopping_session_id)})
