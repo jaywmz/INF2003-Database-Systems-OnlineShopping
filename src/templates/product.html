@@ -27,6 +27,28 @@
         </p>
     </div>
 </div>
+
+<div class="container overflow-hidden mt-5">
+    <h2 class="text-center mb-4">Product Reviews</h2>
+    {% if product.order_reviews %}
+    <div class="row justify-content-lg-around gy-5 gy-md-6">
+        {% for review in product.order_reviews %}
+        <div class="col-12 col-sm-6 col-lg-5">
+            <div class="col-xl-11 col-xxl-10 mx-auto text-center">
+                <img class="img-fluid rounded rounded-circle mb-4" loading="lazy" src="https://via.placeholder.com/150" alt="Reviewer">
+                <p class="mb-2"><strong>Rating:</strong> {{ review.score }}/5</p>
+                <p class="mb-2"><strong>Title:</strong> {{ review.title }}</p>
+                <p class="mb-2">{{ review.content }}</p>
+                <p class="m-0 fw-bold">{{ review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-center">No reviews available for this product.</p>
+    {% endif %}
+</div>
+
 <script>
     document.querySelectorAll('.buttonQtyadjuster').forEach(button => {
         button.addEventListener('click', (e) => {
