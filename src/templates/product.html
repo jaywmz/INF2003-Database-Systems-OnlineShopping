@@ -28,18 +28,38 @@
     </div>
 </div>
 
-<div class="container overflow-hidden mt-5">
+<div class="container overflow-hidden mt-5 row">
     <h2 class="text-center mb-4">Product Reviews</h2>
     {% if product.order_reviews %}
-    <div class="row justify-content-lg-around gy-5 gy-md-6">
+    <div class="row justify-content-center">
         {% for review in product.order_reviews %}
-        <div class="col-12 col-sm-6 col-lg-5">
-            <div class="col-xl-11 col-xxl-10 mx-auto text-center">
-                <img class="img-fluid rounded rounded-circle mb-4" loading="lazy" src="https://via.placeholder.com/150" alt="Reviewer">
-                <p class="mb-2"><strong>Rating:</strong> {{ review.score }}/5</p>
-                <p class="mb-2"><strong>Title:</strong> {{ review.title }}</p>
-                <p class="mb-2">{{ review.content }}</p>
-                <p class="m-0 fw-bold">{{ review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <div class="col-12 col-md-8 mb-4">
+            <div class="card">
+                <div class="row g-0">
+                    <div class="col-md-4 text-center" style="
+                    align-items: center;
+                    justify-content: center;
+                    display: flex;">
+                        <i class="fas fa-user-circle fa-5x mt-3"></i>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <strong>Rating:</strong>
+                                {% for i in range(review.score) %}
+                                <i class="fas fa-star text-warning"></i>
+                                {% endfor %}
+                                {% for i in range(5 - review.score) %}
+                                <i class="far fa-star"></i>
+                                {% endfor %}
+                            </h5>
+                            <h6 class="card-subtitle mb-2 text-muted"><strong>Title:</strong> {{ review.title }}</h6>
+                            <p class="card-text">{{ review.content }}</p>
+                            <p class="card-text"><strong>Customer ID:</strong> {{ review.customer_id }}</p>
+                            <p class="card-text"><small class="text-muted">{{ review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         {% endfor %}
@@ -48,6 +68,10 @@
     <p class="text-center">No reviews available for this product.</p>
     {% endif %}
 </div>
+
+
+
+
 
 <script>
     document.querySelectorAll('.buttonQtyadjuster').forEach(button => {
