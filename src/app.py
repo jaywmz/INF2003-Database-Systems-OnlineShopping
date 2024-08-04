@@ -401,9 +401,6 @@ def view_product_sales(product_id):
                 sale['_id'] = str(sale['_id'])
                 sale['order_id'] = str(sale['order_id'])
                 sale['customer_username'] = customer_data.get(sale['customer_id_fk'], 'Unknown')
-
-        # Debug: Print intermediate results
-        print("Product sales data with customer usernames:", product_sales)
         
         # Render the results to the template
         return render_template('product_sales.html', product_sales=product_sales, has_sales=len(product_sales) > 0, product_id=product_id)
@@ -500,13 +497,6 @@ def shop():
             query["price"]["$lte"] = price_max
         except ValueError:
             pass
-
-    # Debugging print statements
-    print(f"Search: {search}")
-    print(f"Category: {category}")
-    print(f"Price Min: {price_min}")
-    print(f"Price Max: {price_max}")
-    print(f"Query: {query}")
 
     sort_criteria = []
     if sort_by:
@@ -837,13 +827,9 @@ def process_payment(order_id):
     payment_type_id = request.form.get('payment_type_id')
     total_amount = request.form.get('total_amount')
 
-    print(f"Received payment_type_id: {payment_type_id}")  # Debug statement
-    print(f"Received total_amount: {total_amount}")  # Debug statement
-
     # Ensure payment_type_id is a valid ObjectId
     if not payment_type_id or not ObjectId.is_valid(payment_type_id):
         flash("Invalid payment type ID", "error")
-        print("Invalid payment type ID")  # Debug statement
         return redirect(url_for('payment', order_id=order_id))
 
     shopping_session_id = session.get('shopping_session_id')
@@ -856,7 +842,6 @@ def process_payment(order_id):
         total_amount = float(total_amount)
     except ValueError:
         flash("Invalid total amount", "error")
-        print("Invalid total amount")  # Debug statement
         return redirect(url_for('payment', order_id=order_id))
 
     approved_at = datetime.now()
@@ -877,8 +862,6 @@ def process_payment(order_id):
         {"_id": ObjectId(shopping_session_id)},
         {"$set": {"total_amount": 0, "products": []}}
     )
-
-    print("Payment processed successfully")  # Debug statement
 
     return redirect(url_for('shop'))
 
