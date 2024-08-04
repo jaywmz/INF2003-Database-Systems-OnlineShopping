@@ -446,7 +446,6 @@ def view_order_review_seller(order_id):
 @app.route('/shop', methods=['GET', 'POST'])
 @role_required()
 def shop():
-
     user_role = session.get('role')
 
     if user_role == 'customer':
@@ -472,48 +471,75 @@ def shop():
         if not seller_id:
             return redirect(url_for('login'))
 
-    search = request.form.get('search', '')
-    category = request.form.get('category', '')
-    price_min = request.form.get('price_min', '')
-    price_max = request.form.get('price_max', '')
-    sort_by = request.form.get('sort_by', '')
+    search = request.args.get('search', '')
+    category = request.args.get('category', '')
+    price_min = request.args.get('price_min', '')
+    price_max = request.args.get('price_max', '')
+    sort_by = request.args.get('sort_by', '')
 
     # Pagination
     page = request.args.get('page', 1, type=int)
     per_page = 20
 
-    query = {"name": {"$regex": search, "$options": "i"}}
+    query = {}
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
     if category:
         query["category"] = category
     if price_min:
-        query["price"] = {"$gte": float(price_min)}
+        try:
+            price_min = float(price_min)
+            query["price"] = query.get("price", {})
+            query["price"]["$gte"] = price_min
+        except ValueError:
+            pass
     if price_max:
-        query["price"] = {"$lte": float(price_max)}
+        try:
+            price_max = float(price_max)
+            query["price"] = query.get("price", {})
+            query["price"]["$lte"] = price_max
+        except ValueError:
+            pass
 
-    sort_criteria = None
+    # Debugging print statements
+    print(f"Search: {search}")
+    print(f"Category: {category}")
+    print(f"Price Min: {price_min}")
+    print(f"Price Max: {price_max}")
+    print(f"Query: {query}")
+
+    sort_criteria = []
     if sort_by:
         if sort_by == 'price_asc':
-            sort_criteria = [("price", 1)]
+            sort_criteria.append(("price", 1))
         elif sort_by == 'price_desc':
-            sort_criteria = [("price", -1)]
+            sort_criteria.append(("price", -1))
         elif sort_by == 'name_asc':
-            sort_criteria = [("name", 1)]
+            sort_criteria.append(("name", 1))
         elif sort_by == 'name_desc':
-            sort_criteria = [("name", -1)]
+            sort_criteria.append(("name", -1))
 
     total_products = mongo_db.products.count_documents(query)
     total_pages = ceil(total_products / per_page)
 
-    products = list(mongo_db.products.find(query, sort=sort_criteria).skip((page-1)*per_page).limit(per_page))
+    if sort_criteria:
+        products = list(mongo_db.products.find(query).sort(sort_criteria).skip((page - 1) * per_page).limit(per_page))
+    else:
+        products = list(mongo_db.products.find(query).skip((page - 1) * per_page).limit(per_page))
 
     categories = mongo_db.products.distinct("category")
 
-    return render_template('shop.html', 
-                           products=products, 
-                           categories=categories, 
+    return render_template('shop.html',
+                           products=products,
+                           categories=categories,
                            user_role=user_role,
                            page=page,
-                           total_pages=total_pages)
+                           total_pages=total_pages,
+                           search=search,
+                           category=category,
+                           price_min=price_min,
+                           price_max=price_max,
+                           sort_by=sort_by)
 
 @app.route('/product/<product_id>')
 def product(product_id):

@@ -27,65 +27,68 @@
         margin-bottom: 20px;
     }
     .card {
-    height: 100%;
-}
+        height: 100%;
+    }
 
-.product-image {
-    height: 200px;
-    object-fit: contain;
-    padding: 10px;
-}
+    .product-image {
+        height: 200px;
+        object-fit: contain;
+        padding: 10px;
+    }
 
-.product-title {
-    height: 50px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    margin-bottom: 0;
-}
+    .product-title {
+        height: 50px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 0;
+        display: box; /* Add standard display property for compatibility */
+        box-orient: vertical; /* Add standard box-orient property for compatibility */
+        line-clamp: 2; /* Add standard line-clamp property for compatibility */
+    }
 
-.card-body {
-    display: flex;
-    flex-direction: column;
-}
+    .card-body {
+        display: flex;
+        flex-direction: column;
+    }
 
-.card-text {
-    margin-top: auto;
-}
+    .card-text {
+        margin-top: auto;
+    }
 
-.pagination {
-    margin-top: 20px;
-}
-.page-link:hover {
-    color: #0056b3;
-}
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 20px;
-}
+    .pagination {
+        margin-top: 20px;
+    }
+    .page-link:hover {
+        color: #0056b3;
+    }
+    .pagination-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 20px;
+    }
 
-.pagination-box {
-    display: flex;
-    align-items: center;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-    padding: 5px 10px;
-}
+    .pagination-box {
+        display: flex;
+        align-items: center;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 5px 10px;
+    }
 
-.pagination-box input {
-    width: 50px;
-    text-align: center;
-    border: none;
-    outline: none;
-}
+    .pagination-box input {
+        width: 50px;
+        text-align: center;
+        border: none;
+        outline: none;
+    }
 
-.pagination-box span {
-    margin: 0 5px;
-}
+    .pagination-box span {
+        margin: 0 5px;
+    }
 </style>
 {% endblock %}
 
@@ -95,13 +98,18 @@
 function changePage(page) {
     let url = new URL(window.location.href);
     url.searchParams.set('page', page);
+    url.searchParams.set('search', "{{ search }}");
+    url.searchParams.set('category', "{{ category }}");
+    url.searchParams.set('price_min', "{{ price_min }}");
+    url.searchParams.set('price_max', "{{ price_max }}");
+    url.searchParams.set('sort_by', "{{ sort_by }}");
     window.location.href = url.toString();
 }
 
 document.getElementById('current-page').addEventListener('change', function() {
-    let page = parseInt(this.value);
-    if (page < 1) page = 1;
-    if (page > {{ total_pages }}) page = {{ total_pages }};
+    let page = parseInt(this.value, 10); // Specify radix 10 for parseInt
+    if (isNaN(page) || page < 1) page = 1; // Check if page is a valid number and not less than 1
+    if (page > {{ total_pages }}) page = {{ total_pages }}; // Ensure page does not exceed total_pages
     changePage(page);
 });
 
@@ -115,37 +123,35 @@ document.getElementById('current-page').addEventListener('keypress', function(e)
 </script>
 {% endblock %}
 
-
-
 {% block content %}
 <div class="shop-container">
     <h1 class="shop-title">Shop</h1>
     <h2 class="shop-subtitle">Products</h2>
-    <form method="POST" class="row filter-form justify-content-center">
+    <form method="GET" class="row filter-form justify-content-center">
         <div class="col-md-3 col-sm-6">
-            <input type="text" class="form-control" name="search" id="search-product-input" placeholder="Search Product" value="{{ request.form.search }}">
+            <input type="text" class="form-control" name="search" id="search-product-input" placeholder="Search Product" value="{{ search }}">
         </div>
         <div class="col-md-3 col-sm-6">
             <select class="form-select" name="category">
                 <option value="" selected>Categories</option>
                 {% for category in categories %}
-                    <option value="{{ category }}" {% if request.form.category == category %} selected {% endif %}>{{ category }}</option>
+                    <option value="{{ category }}" {% if category == request.args.category %}selected{% endif %}>{{ category }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-2 col-sm-6">
-            <input type="number" class="form-control" name="price_min" id="min-price-input" placeholder="Min Price" value="{{ request.form.price_min }}">
+            <input type="number" class="form-control" name="price_min" placeholder="Min Price" value="{{ price_min }}">
         </div>
         <div class="col-md-2 col-sm-6">
-            <input type="number" class="form-control" name="price_max" id="max-price-input" placeholder="Max Price" value="{{ request.form.price_max }}">
+            <input type="number" class="form-control" name="price_max" placeholder="Max Price" value="{{ price_max }}">
         </div>
         <div class="col-md-2 col-sm-6">
             <select class="form-select" name="sort_by">
                 <option value="" selected>Sort By</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="name_asc">Name: A to Z</option>
-                <option value="name_desc">Name: Z to A</option>
+                <option value="price_asc" {% if sort_by == 'price_asc' %}selected{% endif %}>Price: Low to High</option>
+                <option value="price_desc" {% if sort_by == 'price_desc' %}selected{% endif %}>Price: High to Low</option>
+                <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name: A to Z</option>
+                <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name: Z to A</option>
             </select>
         </div>
         <div class="col-md-2 col-sm-12">
@@ -174,8 +180,7 @@ document.getElementById('current-page').addEventListener('keypress', function(e)
 
     <nav aria-label="Page navigation" class="mt-4">
         <div class="pagination-container d-flex justify-content-center align-items-center">
-            <button class="btn btn-outline-primary mr-2" {% if page == 1 %}disabled{% endif %}
-                onclick="changePage({{ page - 1 }})">
+            <button class="btn btn-outline-primary mr-2" {% if page == 1 %}disabled{% endif %}onclick="changePage({{ page - 1 }})">
                 &lt;
             </button>
             <div class="pagination-box d-flex align-items-center">
@@ -183,8 +188,7 @@ document.getElementById('current-page').addEventListener('keypress', function(e)
                 <input type="number" id="current-page" class="form-control mx-2" value="{{ page }}" min="1" max="{{ total_pages }}">
                 <span>of {{ total_pages }}</span>
             </div>
-            <button class="btn btn-outline-primary ml-2" {% if page == total_pages %}disabled{% endif %}
-                onclick="changePage({{ page + 1 }})">
+            <button class="btn btn-outline-primary ml-2" {% if page == total_pages %}disabled{% endif %}onclick="changePage({{ page + 1 }})">
                 &gt;
             </button>
         </div>
