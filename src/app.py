@@ -863,6 +863,34 @@ def process_payment(order_id):
     return redirect(url_for('shop'))
 
 
+# @app.route('/view_orders')
+# @role_required(role='customer')
+# def view_orders():
+#     customer_id = session.get('customer_id')
+
+#     if not customer_id:
+#         flash('Customer ID is missing', 'error')
+#         return redirect(url_for('shop'))
+
+#     try:
+#         orders = list(mongo_db.orders.aggregate([
+#             {"$match": {"customer_id_fk": customer_id}},
+#             {"$project": {
+#                 "id": "$_id",
+#                 "purchased_at": "$payment.purchased_at",
+#                 "order_status": 1,
+#                 "payment_value": {"$ifNull": ["$payment.payment_value", 0]},
+#                 "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$reviews", []]}}, 0]}, True, False]},
+#                 "reviews": 1
+#             }}
+#         ]))
+        
+#         print(orders)
+
+#         return render_template('orders.html', orders=orders)
+#     except Exception as e:
+#         print(f"Error in view_orders: {e}")
+#         return f"An error occurred: {str(e)}"
 @app.route('/view_orders')
 @role_required(role='customer')
 def view_orders():
@@ -875,16 +903,25 @@ def view_orders():
     try:
         orders = list(mongo_db.orders.aggregate([
             {"$match": {"customer_id_fk": customer_id}},
+            {"$lookup": {
+                "from": "products",
+                "let": {"order_id": "$_id"},
+                "pipeline": [
+                    {"$unwind": "$order_reviews"},
+                    {"$match": {"$expr": {"$eq": ["$order_reviews.order_id", "$$order_id"]}}}
+                ],
+                "as": "product_reviews"
+            }},
             {"$project": {
                 "id": "$_id",
                 "purchased_at": "$payment.purchased_at",
                 "order_status": 1,
                 "payment_value": {"$ifNull": ["$payment.payment_value", 0]},
-                "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$reviews", []]}}, 0]}, True, False]},
-                "reviews": 1
+                "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$product_reviews", []]}}, 0]}, True, False]},
+                "reviews": "$product_reviews.order_reviews"
             }}
         ]))
-        
+
         print(orders)
 
         return render_template('orders.html', orders=orders)
@@ -920,14 +957,27 @@ def order_reviews(order_id):
     order_reviews = list(mongo_db.order_reviews.find({"order_id_fk": ObjectId(order_id)}))
     return render_template('order_reviews.html', order_reviews=order_reviews)
 
+# @app.route('/view_order_review_customer/<order_id>')
+# @role_required(role='customer')
+# def view_order_review(order_id):
+#     order = mongo_db.orders.find_one({"_id": ObjectId(order_id)}, {"reviews": 1})
+#     if not order or 'reviews' not in order:
+#         return "No reviews found", 404
+
+#     return render_template('view_order_review_customer.html', reviews=order['reviews'])
+
 @app.route('/view_order_review_customer/<order_id>')
 @role_required(role='customer')
 def view_order_review(order_id):
-    order = mongo_db.orders.find_one({"_id": ObjectId(order_id)}, {"reviews": 1})
-    if not order or 'reviews' not in order:
+    # Search for a product that contains the order_id in its order_reviews array
+    product = mongo_db.products.find_one({"order_reviews.order_id": ObjectId(order_id)}, {"order_reviews.$": 1})
+    
+    if not product or 'order_reviews' not in product:
         return "No reviews found", 404
 
-    return render_template('view_order_review_customer.html', reviews=order['reviews'])
+    reviews = product['order_reviews']
+    return render_template('view_order_review_customer.html', reviews=reviews)
+
 
 
 # @app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
