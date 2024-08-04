@@ -61,7 +61,7 @@
   $(document).ready(function() {
     const countryCityData = {};
     // Load data from Flask context
-    const data = {{ geolocation_data | tojson }};
+    const data = {{ geolocation_data | tojson | safe }};
 
     data.forEach(function(item) {
       const [country, city] = item;

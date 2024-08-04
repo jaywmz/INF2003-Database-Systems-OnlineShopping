@@ -187,6 +187,20 @@ def logout():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    geolocation_data = []
+
+    try:
+        query = """
+            SELECT country, city
+            FROM geolocation
+            ORDER BY country ASC, city ASC
+        """
+        data = execute_timed_query(db_session, query).fetchall()
+        geolocation_data = [(location.country, location.city) for location in data]
+    
+    except Exception as e:
+        return render_template('register.html', error=f"An error occurred while fetching geolocation data: {str(e)}", geolocation_data=geolocation_data)
+
     if request.method == 'POST':
         try:
             username = request.form['username']
@@ -198,10 +212,10 @@ def register():
             
             if user:
                 user_dict = {key: value for key, value in zip(result.keys(), user)}
-                if user_type == 'seller' and user_dict['seller_id_fk']:
-                    return render_template('register.html', error="User is already registered as a seller.")
-                elif user_type == 'customer' and user_dict['customer_id_fk']:
-                    return render_template('register.html', error="User is already registered as a customer.")
+                if user_type == 'seller' and user_dict.get('seller_id_fk'):
+                    return render_template('register.html', error="User is already registered as a seller.", geolocation_data=geolocation_data)
+                elif user_type == 'customer' and user_dict.get('customer_id_fk'):
+                    return render_template('register.html', error="User is already registered as a customer.", geolocation_data=geolocation_data)
                 else:
                     geolocation_id = execute_timed_query(db_session, "SELECT id FROM geolocation WHERE country = :country AND city = :city", {'country': request.form['user_country'], 'city': request.form['user_city']}).scalar()
 
@@ -233,23 +247,12 @@ def register():
                 flash('Registration successful! Please login.', 'success')
                 return redirect(url_for('login'))
         except KeyError as e:
-            return render_template('register.html', error=f"Missing form field: {e}")
-    
-    geolocation_data = None
-    
-    try:
-        query = """
-            SELECT country, city
-            FROM geolocation
-            ORDER BY country ASC, city ASC
-        """
-        data = execute_timed_query(db_session, query).fetchall()
-        geolocation_data = [(location.country, location.city) for location in data]
-    
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
+            return render_template('register.html', error=f"Missing form field: {e}", geolocation_data=geolocation_data)
+        except Exception as e:
+            return render_template('register.html', error=f"An error occurred: {str(e)}", geolocation_data=geolocation_data)
     
     return render_template('register.html', geolocation_data=geolocation_data)
+
 
 @app.route('/dashboard')
 @role_required(role='seller')
@@ -310,49 +313,58 @@ def add_product():
 @app.route('/view_sales')
 @role_required(role='seller')
 def view_sales():
-    seller_id = str(session['seller_id'])  # Ensure seller_id is a string
+    seller_id = int(session['seller_id'])  # Ensure seller_id is an integer
 
-    try:
-        pipeline = [
-            {"$match": {"order_items.seller_id": seller_id}},
+    pipeline = [
             {"$unwind": "$order_items"},
-            {"$group": {
-                "_id": {"product_id": "$order_items.product_id", "name": "$order_items.name"},
-                "sales_count": {"$sum": "$order_items.quantity"}
+            {"$project": {
+                "order_items": 1,
+                "product_id": "$order_items.product_id"
             }},
-            {"$sort": {"_id.product_id": 1}}
+            {"$lookup": {
+                "from": "products",
+                "localField": "order_items.product_id",
+                "foreignField": "_id",
+                "as": "product_info"
+            }},
+            {"$unwind": "$product_info"},
+            {"$match": {"product_info.seller_id": seller_id}},
+            {"$group": {
+                "_id": "$order_items.product_id",
+                "name": {"$first": "$product_info.name"},
+                "image_link": {"$first": "$product_info.image_link"},
+                "sales_count": {"$sum": "$order_items.quantity"},
+                "total_revenue": {"$sum": {"$multiply": ["$order_items.quantity", "$order_items.price"]}}
+            }},
+            {"$sort": {"_id": 1}}
         ]
-        sales_data = list(mongo_db.orders.aggregate(pipeline))
-
-        return render_template('view_sales.html', sales_data=sales_data)
     
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
-
-
-@app.route('/view_product_sales/<int:product_id>')
+    sales_data = list(mongo_db.orders.aggregate(pipeline))
+    
+    for item in sales_data:
+            item['_id'] = str(item['_id'])
+    # convert the id from object id to str
+    
+    return render_template('view_sales.html', sales_data=sales_data)
+    
+@app.route('/view_product_sales/<product_id>')
 @role_required(role='seller')
 def view_product_sales(product_id):
-
-    seller_id = session['seller_id']
+    seller_id = int(session['seller_id'])  # Ensure seller_id is an integer
 
     try:
+        # Step 1: MongoDB Aggregation Pipeline
         pipeline = [
-            {"$match": {"seller_id": seller_id, "items.product_id": product_id}},
-            {"$unwind": "$items"},
-            {"$match": {"items.product_id": product_id}},
-            {"$lookup": {
-                "from": "users",
-                "localField": "customer_id",
-                "foreignField": "customer_id_fk",
-                "as": "customer"
+            {"$unwind": "$order_items"},
+            {"$match": {
+                "order_items.product_id": ObjectId(product_id),
+                "order_items.seller_id": seller_id
             }},
-            {"$unwind": "$customer"},
-            {"$lookup": {
-                "from": "order_reviews",
-                "localField": "order_id",
-                "foreignField": "order_id",
-                "as": "reviews"
+            {"$project": {
+                "order_id": "$_id",
+                "customer_id_fk": 1,
+                "purchased_at": "$payment.purchased_at",
+                "reviews": 1
             }},
             {"$unwind": {
                 "path": "$reviews",
@@ -361,35 +373,79 @@ def view_product_sales(product_id):
             {"$project": {
                 "order_id": 1,
                 "purchased_at": 1,
-                "customer_username": "$customer.username",
+                "customer_id_fk": 1,
                 "has_review": {"$cond": [{"$gt": ["$reviews", None]}, True, False]}
             }}
         ]
+        
+        # Execute the aggregation pipeline
         product_sales = list(mongo_db.orders.aggregate(pipeline))
-        has_sales = len(product_sales) > 0
 
-        return render_template('product_sales.html', product_sales=product_sales, has_sales=has_sales)
-    
+        # Step 2: Extract unique customer_id_fk values
+        customer_ids = list(set(sale['customer_id_fk'] for sale in product_sales))
+
+        customer_data = {}
+        if customer_ids:
+            # Step 3: Query SQL for Customer Usernames
+            for customer_id in customer_ids:
+                result = execute_timed_query(db_session, 
+                                             "SELECT username FROM user WHERE customer_id_fk = :customer_id_fk", 
+                                             {'customer_id_fk': customer_id})
+                user = result.fetchone()
+                print(user.username)
+                if user:
+                    customer_data[customer_id] = user.username
+
+            # Step 4: Merge the SQL data with MongoDB data
+            for sale in product_sales:
+                sale['_id'] = str(sale['_id'])
+                sale['order_id'] = str(sale['order_id'])
+                sale['customer_username'] = customer_data.get(sale['customer_id_fk'], 'Unknown')
+
+        # Debug: Print intermediate results
+        print("Product sales data with customer usernames:", product_sales)
+        
+        # Render the results to the template
+        return render_template('product_sales.html', product_sales=product_sales, has_sales=len(product_sales) > 0, product_id=product_id)
+
     except Exception as e:
+        # Handle any errors that occur during the aggregation process
         return f"An error occurred: {str(e)}"
 
-@app.route('/view_order_review_seller/<int:order_id>')
+@app.route('/view_order_review_seller/<order_id>')
 @role_required(role='seller')
 def view_order_review_seller(order_id):
-    
     try:
-        order_review = mongo_db.order_reviews.find_one({"order_id": order_id})
-        order_item = mongo_db.orders.find_one({"items.order_id": order_id}, {"items.$": 1})
+        # Find the order document by order_id
+        order = mongo_db.orders.find_one({"_id": ObjectId(order_id)}, {"order_items": 1, "reviews": 1})
 
-        return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
-    
+        if order:
+            # Extract the relevant order item and review
+            order_items = order.get('order_items', [])
+            reviews = order.get('reviews', [])
+            
+            # Assuming there's a single review per order
+            order_item = order_items[0] if order_items else None
+            order_review = reviews[0] if reviews else None
+
+            # Add the order_id to the review
+            if order_review:
+                order_review['order_id_fk'] = order_id
+
+            # Add product_id_fk to order_item
+            if order_item:
+                order_item['product_id_fk'] = str(order_item['product_id'])
+
+            return render_template('view_order_review_seller.html', order_review=order_review, order_item=order_item)
+        else:
+            return "Order not found."
+
     except Exception as e:
         return f"An error occurred: {str(e)}"
 
 @app.route('/shop', methods=['GET', 'POST'])
 @role_required()
 def shop():
-
     user_role = session.get('role')
 
     if user_role == 'customer':
@@ -415,48 +471,75 @@ def shop():
         if not seller_id:
             return redirect(url_for('login'))
 
-    search = request.form.get('search', '')
-    category = request.form.get('category', '')
-    price_min = request.form.get('price_min', '')
-    price_max = request.form.get('price_max', '')
-    sort_by = request.form.get('sort_by', '')
+    search = request.args.get('search', '')
+    category = request.args.get('category', '')
+    price_min = request.args.get('price_min', '')
+    price_max = request.args.get('price_max', '')
+    sort_by = request.args.get('sort_by', '')
 
     # Pagination
     page = request.args.get('page', 1, type=int)
     per_page = 20
 
-    query = {"name": {"$regex": search, "$options": "i"}}
+    query = {}
+    if search:
+        query["name"] = {"$regex": search, "$options": "i"}
     if category:
         query["category"] = category
     if price_min:
-        query["price"] = {"$gte": float(price_min)}
+        try:
+            price_min = float(price_min)
+            query["price"] = query.get("price", {})
+            query["price"]["$gte"] = price_min
+        except ValueError:
+            pass
     if price_max:
-        query["price"] = {"$lte": float(price_max)}
+        try:
+            price_max = float(price_max)
+            query["price"] = query.get("price", {})
+            query["price"]["$lte"] = price_max
+        except ValueError:
+            pass
 
-    sort_criteria = None
+    # Debugging print statements
+    print(f"Search: {search}")
+    print(f"Category: {category}")
+    print(f"Price Min: {price_min}")
+    print(f"Price Max: {price_max}")
+    print(f"Query: {query}")
+
+    sort_criteria = []
     if sort_by:
         if sort_by == 'price_asc':
-            sort_criteria = [("price", 1)]
+            sort_criteria.append(("price", 1))
         elif sort_by == 'price_desc':
-            sort_criteria = [("price", -1)]
+            sort_criteria.append(("price", -1))
         elif sort_by == 'name_asc':
-            sort_criteria = [("name", 1)]
+            sort_criteria.append(("name", 1))
         elif sort_by == 'name_desc':
-            sort_criteria = [("name", -1)]
+            sort_criteria.append(("name", -1))
 
     total_products = mongo_db.products.count_documents(query)
     total_pages = ceil(total_products / per_page)
 
-    products = list(mongo_db.products.find(query, sort=sort_criteria).skip((page-1)*per_page).limit(per_page))
+    if sort_criteria:
+        products = list(mongo_db.products.find(query).sort(sort_criteria).skip((page - 1) * per_page).limit(per_page))
+    else:
+        products = list(mongo_db.products.find(query).skip((page - 1) * per_page).limit(per_page))
 
     categories = mongo_db.products.distinct("category")
 
-    return render_template('shop.html', 
-                           products=products, 
-                           categories=categories, 
+    return render_template('shop.html',
+                           products=products,
+                           categories=categories,
                            user_role=user_role,
                            page=page,
-                           total_pages=total_pages)
+                           total_pages=total_pages,
+                           search=search,
+                           category=category,
+                           price_min=price_min,
+                           price_max=price_max,
+                           sort_by=sort_by)
 
 @app.route('/product/<product_id>')
 def product(product_id):
@@ -659,9 +742,7 @@ ensure_payment_types()
 @app.route('/checkout', methods=['GET', 'POST'])
 @role_required(role='customer')
 def checkout():
-    if 'customer_id' not in session or session.get('role') != 'customer':
-        return redirect(url_for('login'))
-
+    
     shopping_session_id = session.get('shopping_session_id')
     if not shopping_session_id:
         return redirect(url_for('shop'))
@@ -816,13 +897,15 @@ def view_orders():
             {"$match": {"customer_id_fk": customer_id}},
             {"$project": {
                 "id": "$_id",
-                "purchased_at": 1,
+                "purchased_at": "$payment.purchased_at",
                 "order_status": 1,
                 "payment_value": {"$ifNull": ["$payment.payment_value", 0]},
                 "has_review": {"$cond": [{"$gt": [{"$size": {"$ifNull": ["$reviews", []]}}, 0]}, True, False]},
                 "reviews": 1
             }}
         ]))
+        
+        print(orders)
 
         return render_template('orders.html', orders=orders)
     except Exception as e:
@@ -905,7 +988,7 @@ def sales_report():
             "_id": {
                 "product_id": "$order_items.product_id",
                 "product_name": "$order_items.name",
-                "sale_month": {"$substr": ["$purchased_at", 0, 7]}
+                "sale_month": {"$substr": ["$payment.purchased_at", 0, 7]}
             },
             "total_quantity_sold": {"$sum": "$order_items.quantity"},
             "total_revenue": {"$sum": {"$multiply": ["$order_items.quantity", "$order_items.price"]}}
