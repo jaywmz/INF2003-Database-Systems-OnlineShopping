@@ -187,6 +187,20 @@ def logout():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    geolocation_data = []
+
+    try:
+        query = """
+            SELECT country, city
+            FROM geolocation
+            ORDER BY country ASC, city ASC
+        """
+        data = execute_timed_query(db_session, query).fetchall()
+        geolocation_data = [(location.country, location.city) for location in data]
+    
+    except Exception as e:
+        return render_template('register.html', error=f"An error occurred while fetching geolocation data: {str(e)}", geolocation_data=geolocation_data)
+
     if request.method == 'POST':
         try:
             username = request.form['username']
@@ -198,10 +212,10 @@ def register():
             
             if user:
                 user_dict = {key: value for key, value in zip(result.keys(), user)}
-                if user_type == 'seller' and user_dict['seller_id_fk']:
-                    return render_template('register.html', error="User is already registered as a seller.")
-                elif user_type == 'customer' and user_dict['customer_id_fk']:
-                    return render_template('register.html', error="User is already registered as a customer.")
+                if user_type == 'seller' and user_dict.get('seller_id_fk'):
+                    return render_template('register.html', error="User is already registered as a seller.", geolocation_data=geolocation_data)
+                elif user_type == 'customer' and user_dict.get('customer_id_fk'):
+                    return render_template('register.html', error="User is already registered as a customer.", geolocation_data=geolocation_data)
                 else:
                     geolocation_id = execute_timed_query(db_session, "SELECT id FROM geolocation WHERE country = :country AND city = :city", {'country': request.form['user_country'], 'city': request.form['user_city']}).scalar()
 
@@ -233,23 +247,12 @@ def register():
                 flash('Registration successful! Please login.', 'success')
                 return redirect(url_for('login'))
         except KeyError as e:
-            return render_template('register.html', error=f"Missing form field: {e}")
-    
-    geolocation_data = None
-    
-    try:
-        query = """
-            SELECT country, city
-            FROM geolocation
-            ORDER BY country ASC, city ASC
-        """
-        data = execute_timed_query(db_session, query).fetchall()
-        geolocation_data = [(location.country, location.city) for location in data]
-    
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
+            return render_template('register.html', error=f"Missing form field: {e}", geolocation_data=geolocation_data)
+        except Exception as e:
+            return render_template('register.html', error=f"An error occurred: {str(e)}", geolocation_data=geolocation_data)
     
     return render_template('register.html', geolocation_data=geolocation_data)
+
 
 @app.route('/dashboard')
 @role_required(role='seller')
