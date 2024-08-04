@@ -474,6 +474,9 @@ def shop():
     price_max = request.args.get('price_max', '')
     sort_by = request.args.get('sort_by', '')
 
+    print("Test statement here ----------")
+    print(f"price_min: {price_min}, price_max: {price_max}")
+
     # Pagination
     page = request.args.get('page', 1, type=int)
     per_page = 20
@@ -484,19 +487,12 @@ def shop():
     if category:
         query["category"] = category
     if price_min:
-        try:
-            price_min = float(price_min)
-            query["price"] = query.get("price", {})
-            query["price"]["$gte"] = price_min
-        except ValueError:
-            pass
+        query["price"] = {"$gte": float(price_min)}
     if price_max:
-        try:
-            price_max = float(price_max)
-            query["price"] = query.get("price", {})
-            query["price"]["$lte"] = price_max
-        except ValueError:
-            pass
+        query["price"] = query.get("price", {})
+        query["price"]["$lte"] = float(price_max)
+
+    print("Constructed query:", query)  # Debug statement
 
     sort_criteria = []
     if sort_by:
@@ -517,6 +513,7 @@ def shop():
     else:
         products = list(mongo_db.products.find(query).skip((page - 1) * per_page).limit(per_page))
 
+    print("Found products:", products)  # Debug statement
     categories = mongo_db.products.distinct("category")
 
     return render_template('shop.html',

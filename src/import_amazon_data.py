@@ -10,12 +10,39 @@ INR_TO_USD = 0.012
 
 # Print current working directory and files
 print("Current working directory:", os.getcwd())
-print("Files in this directory:", os.listdir())
 
-# Load the dataset
+# List available datasets
+datasets_dir = 'amazon_datasets'
+if not os.path.exists(datasets_dir):
+    print(f"Error: '{datasets_dir}' directory not found.")
+    exit()
+
+available_datasets = [f for f in os.listdir(datasets_dir) if f.endswith('_amazon_database.csv')]
+
+if not available_datasets:
+    print(f"No dataset files found in '{datasets_dir}'. Make sure your CSV files end with '_amazon_database.csv'")
+    exit()
+
+print("Available datasets:")
+for i, dataset in enumerate(available_datasets, 1):
+    print(f"{i}. {dataset}")
+
+# Prompt user to choose a dataset
+while True:
+    try:
+        choice = int(input("Enter the number of the dataset you want to use: "))
+        if 1 <= choice <= len(available_datasets):
+            chosen_dataset = available_datasets[choice - 1]
+            break
+        else:
+            print("Invalid choice. Please try again.")
+    except ValueError:
+        print("Please enter a valid number.")
+
+# Load the chosen dataset
 try:
-    df = pd.read_csv('amazon_database.csv')
-    print("CSV file read successfully")
+    df = pd.read_csv(os.path.join(datasets_dir, chosen_dataset))
+    print(f"CSV file '{chosen_dataset}' read successfully")
     print("Columns in the CSV file:", df.columns.tolist())
 except Exception as e:
     print(f"An error occurred while reading the CSV file: {e}")
@@ -33,7 +60,10 @@ def clean_and_convert_price(price):
 # Rename and process columns
 df = df.rename(columns={'discount_price': 'price', 'image': 'image_link'})
 df['price'] = df['price'].apply(clean_and_convert_price)
-df['category'] = '1'
+
+# Set category based on the chosen dataset
+category = chosen_dataset.split('_')[0].capitalize()
+df['category'] = category
 df['description'] = df['main_category']
 df['weight'] = "0.03"
 df['length'] = "0"
@@ -72,4 +102,4 @@ def create_indexes():
     except Exception as e:
         print(f"An error occurred while creating indexes: {e}")
 
-create_indexes()
+create_indexes()    
