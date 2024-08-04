@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 from database import mongo_db
 import os
+import random
 
 # Exchange rate (as of 2023-07-23, 1 INR = 0.012 USD)
 INR_TO_USD = 0.012
@@ -38,7 +39,9 @@ df['weight'] = "0.03"
 df['length'] = "0"
 df['height'] = "0.01"
 df['width'] = "0.01"
-df['seller_id'] = 1
+
+# Assign a random seller_id between 1 and 23
+df['seller_id'] = [random.randint(1, 23) for _ in range(len(df))]
 
 # Select final columns
 df = df[['name', 'description', 'category', 'price', 'image_link', 'weight', 'length', 'height', 'width', 'seller_id']]
@@ -49,9 +52,10 @@ products = df.to_dict('records')
 # Function to insert products into MongoDB
 def insert_amazon_products(products):
     try:
-        for product in products:
+        for idx, product in enumerate(products):
             product['_id'] = ObjectId()
             mongo_db.products.insert_one(product)
+            print(f"Inserted document {idx + 1}: {product}")
         print(f"Inserted {len(products)} documents into the products collection")
     except Exception as e:
         print(f"An error occurred: {e}")
