@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Product Reviews{% endblock %}
 {% block content %}
-<div class="container-fluid">
-    <h1>Product Reviews</h1>
-    <table class="table">
+<div class="container-fluid mt-5">
+    <h1 class="mb-4">Product Reviews</h1>
+    <table class="table table-striped">
         <thead>
             <tr>
                 <th scope="col">Product ID</th>
@@ -18,10 +18,83 @@
                 <td class="align-middle">{{ review._id.product_id }}</td>
                 <td class="align-middle">{{ review._id.product_name }}</td>
                 <td class="align-middle">{{ review.review_count }}</td>
-                <td class="align-middle">{{ review.average_score | round(2) }}</td>
+                <td class="align-middle">
+                    <div class="star-rating text-warning" style="white-space: nowrap;">
+                        {% for i in range(1, 6) %}
+                            {% if i <= review.average_score|round(0, 'floor') %}
+                            <i class="fas fa-star"></i>
+                            {% else %}
+                            <i class="far fa-star"></i>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    ({{ review.average_score | round(2) }})
+                </td>
+            </tr>
+            <tr>
+                <td colspan="4">
+                    <div class="reviews">
+                        <h5>Individual Reviews</h5>
+                        <ul class="list-group">
+                            {% for individual_review in review.reviews %}
+                            <li class="list-group-item">
+                                <strong>Customer ID:</strong> {{ individual_review.customer_id }}<br>
+                                <strong>Rating:</strong>
+                                <div class="star-rating text-warning" style="white-space: nowrap;">
+                                    {% for i in range(1, 6) %}
+                                        {% if i <= individual_review.score %}
+                                        <i class="fas fa-star"></i>
+                                        {% else %}
+                                        <i class="far fa-star"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <br>
+                                <strong>Title:</strong> {{ individual_review.title }}<br>
+                                <strong>Content:</strong> {{ individual_review.content }}<br>
+                                <strong>Reviewed on:</strong> {{ individual_review.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('product_reviews', page=page-1) }}" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            {% endif %}
+            {% for p in range(1, total_pages + 1) %}
+            {% if p == 1 or p == total_pages or (p >= page - 1 and p <= page + 1) %}
+            <li class="page-item {% if p == page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('product_reviews', page=p) }}">{{ p }}</a>
+            </li>
+            {% elif p == page - 2 or p == page + 2 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('product_reviews', page=p) }}">...</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            {% if page < total_pages %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('product_reviews', page=page+1) }}" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+        <form class="form-inline" method="get" action="{{ url_for('product_reviews') }}">
+            <input type="number" name="page" class="form-control" min="1" max="{{ total_pages }}" placeholder="Go to page">
+            <button type="submit" class="btn btn-primary ml-2">Go</button>
+        </form>
+    </nav>
 </div>
 {% endblock %}

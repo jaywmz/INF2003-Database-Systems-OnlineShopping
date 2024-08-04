@@ -986,32 +986,48 @@ def sales_report():
 @query_timer
 def product_reviews():
     seller_id = session['seller_id']
+    page = int(request.args.get('page', 1))
+    per_page = 10
 
-    pipeline = [
-        {"$unwind": "$order_items"},
-        {"$match": {"order_items.seller_id": seller_id}},
-        {"$unwind": {
-            "path": "$reviews",
-            "preserveNullAndEmptyArrays": True
-        }},
-        {"$group": {
-            "_id": {
-                "product_id": "$order_items.product_id",
-                "product_name": "$order_items.name"
-            },
-            "review_count": {"$sum": {"$cond": [{"$gt": ["$reviews", None]}, 1, 0]}},
-            "average_score": {"$avg": "$reviews.score"}  # Ensure score is a double
-        }},
-        {"$sort": {"average_score": -1, "review_count": -1}}
-    ]
+    try:
+        pipeline = [
+            {"$match": {"seller_id": seller_id}},  # Match products by seller_id
+            {"$unwind": "$order_reviews"},  # Unwind the order_reviews array
+            {"$group": {
+                "_id": {
+                    "product_id": "$_id",
+                    "product_name": "$name"
+                },
+                "review_count": {"$sum": 1},
+                "average_score": {"$avg": "$order_reviews.score"},  # Ensure score is a double
+                "reviews": {"$push": "$order_reviews"}
+            }},
+            {"$sort": {"average_score": -1, "review_count": -1}},
+            {"$skip": (page - 1) * per_page},
+            {"$limit": per_page}
+        ]
 
-    product_reviews = list(mongo_db.orders.aggregate(pipeline))
+        product_reviews = list(mongo_db.products.aggregate(pipeline))
 
-    # Convert ObjectId to string for template rendering
-    for review in product_reviews:
-        review['_id']['product_id'] = str(review['_id']['product_id'])
+        total_reviews_pipeline = [
+            {"$match": {"seller_id": seller_id}},
+            {"$unwind": "$order_reviews"},
+            {"$count": "total_reviews"}
+        ]
+        total_reviews_result = list(mongo_db.products.aggregate(total_reviews_pipeline))
+        total_reviews = total_reviews_result[0]["total_reviews"] if total_reviews_result else 0
+        total_pages = (total_reviews + per_page - 1) // per_page
 
-    return render_template('product_reviews.html', product_reviews=product_reviews)
+        # Convert ObjectId to string for template rendering
+        for review in product_reviews:
+            review['_id']['product_id'] = str(review['_id']['product_id'])
+
+        return render_template('product_reviews.html', product_reviews=product_reviews, page=page, total_pages=total_pages)
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "An error occurred while fetching product reviews", 500
+
 
 def signal_handler(signal, frame):
     print('Received shutdown signal. Cleaning up...')
