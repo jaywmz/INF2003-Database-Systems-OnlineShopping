@@ -930,6 +930,29 @@ def view_order_review(order_id):
     return render_template('view_order_review_customer.html', reviews=order['reviews'])
 
 
+# @app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
+# @role_required(role='customer')
+# def write_order_review(order_id):
+#     if request.method == 'POST':
+#         score = request.form['score']
+#         title = request.form['title']
+#         content = request.form['content']
+#         created_at = datetime.now()
+
+#         review = {
+#             "score": float(score),  # Ensure score is a float
+#             "title": title,
+#             "content": content,
+#             "created_at": created_at
+#         }
+#         mongo_db.orders.update_one(
+#             {"_id": ObjectId(order_id)},
+#             {"$push": {"reviews": review}}
+#         )
+
+#         return redirect(url_for('view_orders'))
+#     else:
+#         return render_template('write_order_review.html', order_id=order_id)
 @app.route('/write_order_review/<order_id>', methods=['GET', 'POST'])
 @role_required(role='customer')
 def write_order_review(order_id):
@@ -938,22 +961,36 @@ def write_order_review(order_id):
         title = request.form['title']
         content = request.form['content']
         created_at = datetime.now()
+        customer_id = session['customer_id']  # Assuming you store the customer ID in session
+
+        # Fetch the order to get product_id
+        order = mongo_db.orders.find_one({"_id": ObjectId(order_id)})
+
+        if not order:
+            return "Order not found", 404
+
+        # Assuming each order has one product in order_items
+        product_id = order['order_items'][0]['product_id']
 
         review = {
+            "_id": ObjectId(),
+            "product_id": product_id,
+            "order_id": ObjectId(order_id),
+            "customer_id": customer_id,
             "score": float(score),  # Ensure score is a float
             "title": title,
             "content": content,
             "created_at": created_at
         }
-        mongo_db.orders.update_one(
-            {"_id": ObjectId(order_id)},
-            {"$push": {"reviews": review}}
+
+        mongo_db.products.update_one(
+            {"_id": product_id},
+            {"$push": {"order_reviews": review}}
         )
 
         return redirect(url_for('view_orders'))
     else:
         return render_template('write_order_review.html', order_id=order_id)
-
 
 @app.route('/sales_report')
 @role_required(role='seller')
