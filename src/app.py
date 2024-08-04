@@ -977,7 +977,7 @@ def write_order_review(order_id):
             "product_id": product_id,
             "order_id": ObjectId(order_id),
             "customer_id": customer_id,
-            "score": float(score),  # Ensure score is a float
+            "score": int(score),  # Ensure score is a float
             "title": title,
             "content": content,
             "created_at": created_at
